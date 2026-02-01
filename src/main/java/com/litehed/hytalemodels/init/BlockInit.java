@@ -15,4 +15,6 @@ public class BlockInit {
     public static final DeferredBlock<Block> BED = BLOCKS.registerSimpleBlock("bed", () -> BlockBehaviour.Properties.of().noOcclusion());
     public static final DeferredBlock<Block> COFFIN = BLOCKS.registerSimpleBlock("coffin", () -> BlockBehaviour.Properties.of().noOcclusion());
     public static final DeferredBlock<Block> SLOPE = BLOCKS.registerSimpleBlock("slope", () -> BlockBehaviour.Properties.of().noOcclusion());
+    public static final DeferredBlock<Block> CHAIR = BLOCKS.registerSimpleBlock("chair", () -> BlockBehaviour.Properties.of().noOcclusion());
+    public static final DeferredBlock<Block> TABLE = BLOCKS.registerSimpleBlock("table", () -> BlockBehaviour.Properties.of().noOcclusion());
 }

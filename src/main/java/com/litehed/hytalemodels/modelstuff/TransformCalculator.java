@@ -26,6 +26,11 @@ public class TransformCalculator {
             parentOrientation.transform(worldPos);
 
             worldPos.add(current.getPosition());
+            if (current.hasShape()) {
+                Vector3f parentOffset = new Vector3f(current.getShape().getOffset());
+                parentOrientation.transform(parentOffset);
+                worldPos.add(parentOffset);
+            }
 
             current = current.getParent();
         }
