@@ -1,0 +1,9 @@
+{
+  "parent": "neoforge:item/default",
+  "loader": "hytalemodelloader:blockymodel_loader",
+  "model": "hytalemodelloader:models/adamantite.blockymodel",
+  "textures": {
+    "texture": "hytalemodelloader:item/adamantite_texture",
+    "particle": "hytalemodelloader:item/adamantite_texture"
+  }
+}

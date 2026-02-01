@@ -2,6 +2,7 @@ package com.litehed.hytalemodels.init;
 
 import com.litehed.hytalemodels.HytaleModelLoader;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
@@ -15,4 +16,6 @@ public class ItemInit {
     public static final DeferredItem<BlockItem> SLOPE = ITEMS.registerSimpleBlockItem("slope", BlockInit.SLOPE);
     public static final DeferredItem<BlockItem> CHAIR = ITEMS.registerSimpleBlockItem("chair", BlockInit.CHAIR);
     public static final DeferredItem<BlockItem> TABLE = ITEMS.registerSimpleBlockItem("table", BlockInit.TABLE);
+
+    public static final DeferredItem<Item> ADAMANTITE_PICK = ITEMS.registerSimpleItem("adamantite");
 }

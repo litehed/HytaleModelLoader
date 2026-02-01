@@ -176,7 +176,7 @@ public class QuadBuilder {
      */
     private static float[][] calculateUVCoordinates(Direction face, BlockyModelGeometry.FaceTextureLayout layout,
                                                     Vector3f size, TextureAtlasSprite sprite) {
-        UVSize uvSize = getUVSizeForFace(face, size, layout.angle());
+        UVSize uvSize = getUVSizeForFace(face, size);
         UVBounds bounds = calculateUVBounds(layout, uvSize, sprite);
         return rotateUVCoordinates(bounds, layout.angle(), layout.mirrorX(), layout.mirrorY());
     }
@@ -184,22 +184,16 @@ public class QuadBuilder {
     /**
      * Get UV size based on face orientation
      *
-     * @param face  the Direction of the face
-     * @param size  the size of the face
-     * @param angle the rotation angle
+     * @param face the Direction of the face
+     * @param size the size of the face
      * @return the UVSize for the given face and rotation
      */
-    private static UVSize getUVSizeForFace(Direction face, Vector3f size, int angle) {
+    private static UVSize getUVSizeForFace(Direction face, Vector3f size) {
         UVSize baseSize = switch (face) {
             case UP, DOWN -> new UVSize(size.x, size.z);
             case WEST, EAST -> new UVSize(size.z, size.y);
             default -> new UVSize(size.x, size.y);
         };
-
-        // Swap dimensions for 90/270 degree rotations
-//        if (angle == 90 || angle == 270) {
-//            return new UVSize(baseSize.v, baseSize.u);
-//        }
         return baseSize;
     }
 
