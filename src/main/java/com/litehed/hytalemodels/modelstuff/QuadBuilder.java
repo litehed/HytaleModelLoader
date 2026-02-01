@@ -17,7 +17,7 @@ public class QuadBuilder {
     private static final int TINT_INDEX_NONE = -1;                          // No tinting -1
     private static final float[] COLOR_WHITE = {1.0f, 1.0f, 1.0f, 1.0f};
 
-    public static final boolean DEBUG_BORDERS = true;
+    public static final boolean DEBUG_BORDERS = false;
     private static final float BORDER_THICKNESS = 0.002f;
 
     /**
@@ -197,9 +197,9 @@ public class QuadBuilder {
         };
 
         // Swap dimensions for 90/270 degree rotations
-        if (angle == 90 || angle == 270) {
-            return new UVSize(baseSize.v, baseSize.u);
-        }
+//        if (angle == 90 || angle == 270) {
+//            return new UVSize(baseSize.v, baseSize.u);
+//        }
         return baseSize;
     }
 
@@ -253,35 +253,22 @@ public class QuadBuilder {
      */
     private static float[][] rotateUVCoordinates(UVBounds bounds, int angle, boolean mirrorX, boolean mirrorY) {
         float[][] uvs = new float[4][2];
+        if (angle != 0) {
+            float[][] rotated = rotatePair(bounds.uMin, bounds.vMin, bounds.uMin, bounds.vMin, angle);
+            uvs[0] = rotated[0];
+            rotated = rotatePair(bounds.uMax, bounds.vMin, bounds.uMin, bounds.vMin, angle);
+            uvs[1] = rotated[0];
+            rotated = rotatePair(bounds.uMax, bounds.vMax, bounds.uMin, bounds.vMin, angle);
+            uvs[2] = rotated[0];
+            rotated = rotatePair(bounds.uMin, bounds.vMax, bounds.uMin, bounds.vMin, angle);
+            uvs[3] = rotated[0];
+        } else {
+            uvs[0] = new float[]{bounds.uMin, bounds.vMax};
+            uvs[1] = new float[]{bounds.uMax, bounds.vMax};
+            uvs[2] = new float[]{bounds.uMax, bounds.vMin};
+            uvs[3] = new float[]{bounds.uMin, bounds.vMin};
 
-        switch (angle) {
-            case 0 -> {
-                uvs[0] = new float[]{bounds.uMin, bounds.vMax};
-                uvs[1] = new float[]{bounds.uMax, bounds.vMax};
-                uvs[2] = new float[]{bounds.uMax, bounds.vMin};
-                uvs[3] = new float[]{bounds.uMin, bounds.vMin};
-            }
-            case 90 -> {
-                uvs[0] = new float[]{bounds.uMin, bounds.vMin};
-                uvs[1] = new float[]{bounds.uMin, bounds.vMax};
-                uvs[2] = new float[]{bounds.uMax, bounds.vMax};
-                uvs[3] = new float[]{bounds.uMax, bounds.vMin};
-            }
-            case 180 -> {
-                uvs[0] = new float[]{bounds.uMax, bounds.vMin};
-                uvs[1] = new float[]{bounds.uMin, bounds.vMin};
-                uvs[2] = new float[]{bounds.uMin, bounds.vMax};
-                uvs[3] = new float[]{bounds.uMax, bounds.vMax};
-            }
-            case 270 -> {
-                uvs[0] = new float[]{bounds.uMax, bounds.vMax};
-                uvs[1] = new float[]{bounds.uMax, bounds.vMin};
-                uvs[2] = new float[]{bounds.uMin, bounds.vMin};
-                uvs[3] = new float[]{bounds.uMin, bounds.vMax};
-            }
-            default -> throw new IllegalArgumentException("Invalid angle: " + angle);
         }
-
         if (mirrorX) {
             for (int i = 0; i < 4; i++) {
                 float temp = uvs[i][0];
@@ -296,6 +283,24 @@ public class QuadBuilder {
         }
 
         return uvs;
+    }
+
+    /**
+     * Rotate a single UV pair around a pivot point
+     *
+     * @param u      the U coordinate
+     * @param v      the V coordinate
+     * @param pivotU the pivot U coordinate
+     * @param pivotV the pivot V coordinate
+     * @param angle  the rotation angle
+     * @return the rotated UV coordinates
+     */
+    private static float[][] rotatePair(float u, float v, float pivotU, float pivotV, int angle) {
+        float sin = (float) Math.sin(Math.toRadians(angle));
+        float cos = (float) Math.cos(Math.toRadians(angle));
+        float rotatedU = pivotU + (u - pivotU) * cos - (v - pivotV) * sin;
+        float rotatedV = pivotV + (u - pivotU) * sin + (v - pivotV) * cos;
+        return new float[][]{{rotatedU, rotatedV}};
     }
 
     /**
