@@ -75,10 +75,6 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
                 ? modelState.transformation()
                 : modelState.transformation().compose(rootTransform);
 
-        // Blocks seem to be backwards so that is being corrected
-        Transformation correction = new Transformation(null, new Quaternionf().rotateY((float) Math.PI), null, null);
-        finalTransform = finalTransform.compose(correction);
-
         for (BlockyNode node : nodes) {
             if (node.hasShape()) {
                 bakeNode(builder, node, textureSlots, modelBaker, finalTransform, modelDebugName);
