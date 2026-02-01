@@ -125,7 +125,7 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
 
             FaceTextureLayout texLayout = shape.getTextureLayout(direction);
             Pair<BakedQuad, Direction> quad = QuadBuilder.createQuad(
-                    direction, min, max, sprite, texLayout, shape.getSize(), finalTransform
+                    direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform
             );
 
             addQuadToBuilder(builder, quad);
@@ -143,7 +143,7 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
             // Backface if double-sided
             if (shape.isDoubleSided()) {
                 Pair<BakedQuad, Direction> backQuad = QuadBuilder.createReversedQuad(
-                        direction, min, max, sprite, texLayout, shape.getSize(), finalTransform
+                        direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform
                 );
                 builder.addUnculledFace(backQuad.getLeft());
             }
@@ -229,6 +229,7 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
         private final boolean doubleSided;
         private final Vector3f offset;
         private final Vector3f stretch;
+        private final Vector3f originalSize;
         private final Vector3f size;
         private final Map<Direction, FaceTextureLayout> textureLayout;
 
@@ -238,9 +239,9 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
             this.visible = visible;
             this.doubleSided = doubleSided;
             this.offset = new Vector3f(offset);
-            this.stretch = new Vector3f(stretch);
 
-            // Calculate final size (size * abs(stretch))
+            this.stretch = new Vector3f(stretch);
+            this.originalSize = new Vector3f(size);
             this.size = new Vector3f(
                     size.x * Math.abs(stretch.x),
                     size.y * Math.abs(stretch.y),
@@ -278,6 +279,10 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
 
         public Vector3f getStretch() {
             return stretch;
+        }
+
+        public Vector3f getOriginalSize() {
+            return originalSize;
         }
 
         public Vector3f getSize() {
