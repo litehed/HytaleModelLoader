@@ -1,7 +1,19 @@
 {
   "variants": {
-    "": {
+    "facing=north": {
       "model": "hytalemodelloader:block/slope"
+    },
+    "facing=east": {
+      "model": "hytalemodelloader:block/slope",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "hytalemodelloader:block/slope",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "hytalemodelloader:block/slope",
+      "y": 270
     }
   }
 }

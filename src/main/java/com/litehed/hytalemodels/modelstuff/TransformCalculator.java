@@ -8,7 +8,6 @@ public class TransformCalculator {
 
     private static final float POSITION_SCALE = 32.0f;      // Convert from model units to block units
     private static final float POSITION_OFFSET_Y = 16.0f;   // Y-axis offset
-    private static final float BLOCK_CENTER = 0.5f;         // Center point of a block
 
     /**
      * Calculate the world-space position of a node
@@ -73,14 +72,14 @@ public class TransformCalculator {
         worldOrientation.transform(rotatedOffset);
 
         // Calculate center position in block coordinates
-        float centerX = (worldPosition.x + rotatedOffset.x) / POSITION_SCALE + BLOCK_CENTER;
-        float centerY = (worldPosition.y + rotatedOffset.y - POSITION_OFFSET_Y) / POSITION_SCALE + BLOCK_CENTER;
-        float centerZ = (worldPosition.z + rotatedOffset.z) / POSITION_SCALE + BLOCK_CENTER;
+        float centerX = (worldPosition.x + rotatedOffset.x) / POSITION_SCALE;
+        float centerY = (worldPosition.y + rotatedOffset.y - POSITION_OFFSET_Y) / POSITION_SCALE;
+        float centerZ = (worldPosition.z + rotatedOffset.z) / POSITION_SCALE;
 
         return new Transformation(
                 new Vector3f(centerX, centerY, centerZ),     // Translation
                 worldOrientation,                            // Rotation
-                new Vector3f(1, 1, 1),              // Scale (no scaling)
+                new Vector3f(1),                          // Scale (no scaling)
                 null                                         // No additional rotation
         );
     }
@@ -98,4 +97,5 @@ public class TransformCalculator {
                 (size.z / 2) / POSITION_SCALE
         );
     }
+
 }

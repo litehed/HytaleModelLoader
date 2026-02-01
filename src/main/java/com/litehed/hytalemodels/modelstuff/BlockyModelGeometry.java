@@ -70,9 +70,14 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
                 NeoForgeModelProperties.TRANSFORM,
                 Transformation.identity()
         );
+
         Transformation finalTransform = rootTransform.isIdentity()
                 ? modelState.transformation()
                 : modelState.transformation().compose(rootTransform);
+
+        // Blocks seem to be backwards so that is being corrected
+        Transformation correction = new Transformation(null, new Quaternionf().rotateY((float) Math.PI), null, null);
+        finalTransform = finalTransform.compose(correction);
 
         for (BlockyNode node : nodes) {
             if (node.hasShape()) {
@@ -107,10 +112,17 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
                 worldPos, shape.getOffset(), worldRot
         );
 
-        // Combine transformations
-        Transformation finalTransform = modelTransform.isIdentity()
-                ? nodeTransform
-                : modelTransform.compose(nodeTransform);
+        // Translate after rotation
+        Transformation centerTranslate = new Transformation(
+                new Vector3f(0.5f, 0.5f, 0.5f), null, null, null
+        );
+
+        Transformation finalTransform;
+        if (modelTransform.isIdentity()) {
+            finalTransform = centerTranslate.compose(nodeTransform);
+        } else {
+            finalTransform = centerTranslate.compose(modelTransform).compose(nodeTransform);
+        }
 
         // Bounds
         Vector3f halfSizes = TransformCalculator.calculateHalfSizes(shape.getSize());
