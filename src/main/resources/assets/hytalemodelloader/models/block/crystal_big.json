@@ -1,0 +1,8 @@
+{
+  "loader": "hytalemodelloader:blockymodel_loader",
+  "model": "hytalemodelloader:models/crystal_big.blockymodel",
+  "textures": {
+    "texture": "hytalemodelloader:block/green",
+    "particle": "hytalemodelloader:block/green"
+  }
+}

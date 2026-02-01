@@ -1,0 +1,13 @@
+{
+  "itemGroup.hytalemodelloader": "Example Mod Tab",
+  "block.hytalemodelloader.example_block": "Example Block",
+  "item.hytalemodelloader.example_item": "Example Item",
+
+  "hytalemodelloader.configuration.title": "HytaleModelLoader Configs",
+  "hytalemodelloader.configuration.section.hytalemodelloader.common.toml": "HytaleModelLoader Configs",
+  "hytalemodelloader.configuration.section.hytalemodelloader.common.toml.title": "HytaleModelLoader Configs",
+  "hytalemodelloader.configuration.items": "Item List",
+  "hytalemodelloader.configuration.logDirtBlock": "Log Dirt Block",
+  "hytalemodelloader.configuration.magicNumberIntroduction": "Magic Number Text",
+  "hytalemodelloader.configuration.magicNumber": "Magic Number"
+}

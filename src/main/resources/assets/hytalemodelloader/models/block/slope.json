@@ -1,0 +1,9 @@
+{
+  "loader": "hytalemodelloader:blockymodel_loader",
+  "model": "hytalemodelloader:models/slope.blockymodel",
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "texture": "hytalemodelloader:block/blackwood_02",
+    "particle": "hytalemodelloader:block/blackwood_02"
+  }
+}

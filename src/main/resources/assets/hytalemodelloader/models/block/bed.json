@@ -1,0 +1,9 @@
+{
+  "loader": "hytalemodelloader:blockymodel_loader",
+  "model": "hytalemodelloader:models/bed.blockymodel",
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "texture": "hytalemodelloader:block/bed_texture",
+    "particle": "hytalemodelloader:block/bed_texture"
+  }
+}

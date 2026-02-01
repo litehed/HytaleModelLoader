@@ -1,0 +1,9 @@
+{
+  "loader": "hytalemodelloader:blockymodel_loader",
+  "model": "hytalemodelloader:models/pot.blockymodel",
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "texture": "hytalemodelloader:block/pot_texture",
+    "particle": "hytalemodelloader:block/pot_texture"
+  }
+}
