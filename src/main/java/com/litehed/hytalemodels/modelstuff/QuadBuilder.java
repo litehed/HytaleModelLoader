@@ -52,6 +52,7 @@ public class QuadBuilder {
         return Pair.of(baker.bakeQuad(), cullFace);
     }
 
+
     /**
      * Create a reversed quad for backfaces
      *
@@ -178,7 +179,7 @@ public class QuadBuilder {
                                                     Vector3f size, TextureAtlasSprite sprite) {
         UVSize uvSize = getUVSizeForFace(face, size);
         UVBounds bounds = calculateUVBounds(layout, uvSize, sprite);
-        return rotateUVCoordinates(bounds, layout.angle(), layout.mirrorX(), layout.mirrorY());
+        return transformUVCoordinates(bounds, layout, uvSize, sprite);
     }
 
     /**
@@ -189,12 +190,11 @@ public class QuadBuilder {
      * @return the UVSize for the given face and rotation
      */
     private static UVSize getUVSizeForFace(Direction face, Vector3f size) {
-        UVSize baseSize = switch (face) {
+        return switch (face) {
             case UP, DOWN -> new UVSize(size.x, size.z);
             case WEST, EAST -> new UVSize(size.z, size.y);
             default -> new UVSize(size.x, size.y);
         };
-        return baseSize;
     }
 
     /**
@@ -210,13 +210,11 @@ public class QuadBuilder {
         int textureWidth = sprite.contents().width();
         int textureHeight = sprite.contents().height();
 
-        // Calculate base UV bounds
         float uMin = layout.offsetX() / (float) textureWidth;
         float vMin = layout.offsetY() / (float) textureHeight;
         float uMax = (layout.offsetX() + (layout.mirrorX() ? -uvSize.u : uvSize.u)) / (float) textureWidth;
         float vMax = (layout.offsetY() + (layout.mirrorY() ? -uvSize.v : uvSize.v)) / (float) textureHeight;
 
-        // Apply mirroring
         if (layout.mirrorX()) {
             float temp = uMin;
             uMin = uMax;
@@ -237,64 +235,128 @@ public class QuadBuilder {
     }
 
     /**
-     * Rotate UV coordinates based on angle
+     * Transform UV coordinates with rotation and mirroring
      *
-     * @param bounds  the UV bounds
-     * @param angle   the rotation angle
-     * @param mirrorX whether to mirror horizontally
-     * @param mirrorY whether to mirror vertically
-     * @return the rotated UV coordinates
+     * @param bounds the UV bounds
+     * @param layout the texture layout containing rotation and mirror flags
+     * @param uvSize the size of the UV region
+     * @param sprite the TextureAtlasSprite for coordinate conversion
+     * @return transformed UV coordinates for all 4 vertices
      */
-    private static float[][] rotateUVCoordinates(UVBounds bounds, int angle, boolean mirrorX, boolean mirrorY) {
+    private static float[][] transformUVCoordinates(
+            UVBounds bounds,
+            BlockyModelGeometry.FaceTextureLayout layout,
+            UVSize uvSize,
+            TextureAtlasSprite sprite) {
+
+        int textureWidth = sprite.contents().width();
+        int textureHeight = sprite.contents().height();
+        int angle = layout.angle();
+        boolean mirrorX = layout.mirrorX();
+        boolean mirrorY = layout.mirrorY();
+
         float[][] uvs = new float[4][2];
+
         if (angle != 0) {
-            float[][] rotated = rotatePair(bounds.uMin, bounds.vMin, bounds.uMin, bounds.vMin, angle);
-            uvs[0] = rotated[0];
-            rotated = rotatePair(bounds.uMax, bounds.vMin, bounds.uMin, bounds.vMin, angle);
-            uvs[1] = rotated[0];
-            rotated = rotatePair(bounds.uMax, bounds.vMax, bounds.uMin, bounds.vMin, angle);
-            uvs[2] = rotated[0];
-            rotated = rotatePair(bounds.uMin, bounds.vMax, bounds.uMin, bounds.vMin, angle);
-            uvs[3] = rotated[0];
+            float pivotUPx = layout.offsetX();
+            float pivotVPx = layout.offsetY();
+
+            float uSize = mirrorX ? -uvSize.u : uvSize.u;
+            float vSize = mirrorY ? -uvSize.v : uvSize.v;
+
+            float[][] cornersPx = new float[4][2];
+            cornersPx[0] = new float[]{pivotUPx, pivotVPx};              // Top-left (pivot)
+            cornersPx[1] = new float[]{pivotUPx + uSize, pivotVPx};      // Top-right
+            cornersPx[2] = new float[]{pivotUPx + uSize, pivotVPx + vSize}; // Bottom-right
+            cornersPx[3] = new float[]{pivotUPx, pivotVPx + vSize};      // Bottom-left
+
+            for (int i = 0; i < 4; i++) {
+                float[] rotated = rotatePointClockwise(
+                        cornersPx[i][0], cornersPx[i][1],
+                        pivotUPx, pivotVPx,
+                        angle
+                );
+
+                uvs[i][0] = normalizeU(rotated[0], sprite, textureWidth);
+                uvs[i][1] = normalizeV(rotated[1], sprite, textureHeight);
+            }
         } else {
             uvs[0] = new float[]{bounds.uMin, bounds.vMax};
             uvs[1] = new float[]{bounds.uMax, bounds.vMax};
             uvs[2] = new float[]{bounds.uMax, bounds.vMin};
             uvs[3] = new float[]{bounds.uMin, bounds.vMin};
 
-        }
-        if (mirrorX) {
-            for (int i = 0; i < 4; i++) {
-                float temp = uvs[i][0];
-                uvs[i][0] = bounds.uMin + bounds.uMax - temp;  // Flip around center
+            if (mirrorX) {
+                float[] temp = uvs[0];
+                uvs[0] = uvs[1];
+                uvs[1] = temp;
+
+                temp = uvs[3];
+                uvs[3] = uvs[2];
+                uvs[2] = temp;
             }
-        }
-        if (mirrorY) {
-            for (int i = 0; i < 4; i++) {
-                float temp = uvs[i][1];
-                uvs[i][1] = bounds.vMin + bounds.vMax - temp;  // Flip around center
+            if (mirrorY) {
+                float[] temp = uvs[0];
+                uvs[0] = uvs[3];
+                uvs[3] = temp;
+
+                temp = uvs[1];
+                uvs[1] = uvs[2];
+                uvs[2] = temp;
             }
         }
 
         return uvs;
     }
 
+
     /**
-     * Rotate a single UV pair around a pivot point
+     * Rotate a point (x, y) around a pivot (pivotX, pivotY) by a given angle in degrees
      *
-     * @param u      the U coordinate
-     * @param v      the V coordinate
-     * @param pivotU the pivot U coordinate
-     * @param pivotV the pivot V coordinate
-     * @param angle  the rotation angle
-     * @return the rotated UV coordinates
+     * @param x      the x-coordinate of the point to rotate
+     * @param y      the y-coordinate of the point to rotate
+     * @param pivotX the x-coordinate of the pivot point
+     * @param pivotY the y-coordinate of the pivot point
+     * @param angle  the rotation angle in degrees (must be one of 0, 90, 180, 270)
+     * @return the new coordinates of the point after rotation as a float array [newX, newY]
      */
-    private static float[][] rotatePair(float u, float v, float pivotU, float pivotV, int angle) {
-        float sin = (float) Math.sin(Math.toRadians(angle));
-        float cos = (float) Math.cos(Math.toRadians(angle));
-        float rotatedU = pivotU + (u - pivotU) * cos - (v - pivotV) * sin;
-        float rotatedV = pivotV + (u - pivotU) * sin + (v - pivotV) * cos;
-        return new float[][]{{rotatedU, rotatedV}};
+    private static float[] rotatePointClockwise(float x, float y, float pivotX, float pivotY, int angle) {
+        float dx = x - pivotX;
+        float dy = y - pivotY;
+
+        float newDx, newDy;
+        newDy = switch (angle) {
+            case 90 -> {
+                newDx = -dy;
+                yield dx;
+            }
+            case 180 -> {
+                newDx = -dx;
+                yield -dy;
+            }
+            case 270 -> {
+                newDx = dy;
+                yield -dx;
+            }
+            default -> {
+                newDx = dx;
+                yield dy;
+            }
+        };
+
+        return new float[]{pivotX + newDx, pivotY + newDy};
+    }
+
+
+    // Helper funcs to get u and v normalized to proper coords
+    private static float normalizeU(float pixelU, TextureAtlasSprite sprite, int textureWidth) {
+        float relativeU = pixelU / textureWidth;
+        return sprite.getU0() + (sprite.getU1() - sprite.getU0()) * relativeU;
+    }
+
+    private static float normalizeV(float pixelV, TextureAtlasSprite sprite, int textureHeight) {
+        float relativeV = pixelV / textureHeight;
+        return sprite.getV0() + (sprite.getV1() - sprite.getV0()) * relativeV;
     }
 
     /**

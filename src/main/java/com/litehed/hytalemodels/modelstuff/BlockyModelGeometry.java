@@ -151,8 +151,7 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
             // Backface if double-sided
             if (shape.isDoubleSided()) {
                 Pair<BakedQuad, Direction> backQuad = QuadBuilder.createReversedQuad(
-                        direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform
-                );
+                        direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform);
                 builder.addUnculledFace(backQuad.getLeft());
             }
         }

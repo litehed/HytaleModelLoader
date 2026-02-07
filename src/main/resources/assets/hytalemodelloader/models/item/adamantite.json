@@ -5,5 +5,12 @@
   "textures": {
     "texture": "hytalemodelloader:item/adamantite_texture",
     "particle": "hytalemodelloader:item/adamantite_texture"
+  },
+  "display": {
+    "firstperson_righthand": {
+      "rotation": [0, -75, 4],
+      "translation": [0.5, -2.5, 0],
+      "scale": [0.9, 0.9, 0.9]
+    }
   }
 }
