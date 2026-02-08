@@ -16,9 +16,10 @@ public class HytaleModelLoader {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public HytaleModelLoader(IEventBus modEventBus, ModContainer modContainer) {
-        BlockInit.BLOCKS.register(modEventBus);
-        ItemInit.ITEMS.register(modEventBus);
-        
+        // Remember to comment these out for version releases
+//        BlockInit.BLOCKS.register(modEventBus);
+//        ItemInit.ITEMS.register(modEventBus);
+
         // Register our mod's ModConfigSpec so that FML can create and load the config file for us
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
