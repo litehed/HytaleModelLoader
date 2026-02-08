@@ -2,7 +2,7 @@
 Hytale Model Loader
 =======
 
-A mod for Minecraft Neoforge 1.21.11 that allows the player to import and use Hytale models in game. It converts Hytale's BlockyModel file format into a renderable version inside of Minecraft. Currently these can be rendered as item or block models with entity models coming in a future version.
+A mod for Minecraft Neoforge 1.21.11 that allows the player to import and use Hytale models in game. It converts Hytale's BlockyModel file format into a renderable version inside of Minecraft. Currently, these can be rendered as item or block models with entity models coming in a future version. This is usable with both resource packs and mods.
 
 ### Creating a Model
 
