@@ -39,7 +39,8 @@ Models are defined using `.blockymodel` files (custom binary/text format) and re
 - [x] Add UV rotation and mirroring support
 
 ### v1.1.0
-- [ ] Make it easier to modify item scaling and translation
+- [x] Check item and block scaling/translating using model json
+- [ ] Make bounding boxes fit models
 - [ ] Fix and clean up code
 
 ### v1.2.0

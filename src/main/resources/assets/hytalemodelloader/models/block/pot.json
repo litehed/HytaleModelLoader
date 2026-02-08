@@ -5,5 +5,9 @@
   "textures": {
     "texture": "hytalemodelloader:block/pot_texture",
     "particle": "hytalemodelloader:block/pot_texture"
+  },
+  "transform": {
+    "scale": [0.6, 0.6, 0.6],
+    "translation": [-0.4, -0.6, -0.4]
   }
 }

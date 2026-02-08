@@ -17,8 +17,8 @@ public class HytaleModelLoader {
 
     public HytaleModelLoader(IEventBus modEventBus, ModContainer modContainer) {
         // Remember to comment these out for version releases
-//        BlockInit.BLOCKS.register(modEventBus);
-//        ItemInit.ITEMS.register(modEventBus);
+        BlockInit.BLOCKS.register(modEventBus);
+        ItemInit.ITEMS.register(modEventBus);
 
         // Register our mod's ModConfigSpec so that FML can create and load the config file for us
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
