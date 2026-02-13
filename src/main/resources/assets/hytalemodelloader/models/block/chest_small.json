@@ -1,0 +1,9 @@
+{
+  "loader": "hytalemodelloader:blockymodel_loader",
+  "model": "hytalemodelloader:models/chest_small.blockymodel",
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "texture": "hytalemodelloader:block/chest_small_texture",
+    "particle": "hytalemodelloader:block/chest_small_texture"
+  }
+}

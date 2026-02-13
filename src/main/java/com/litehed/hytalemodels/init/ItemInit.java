@@ -14,6 +14,7 @@ public class ItemInit {
     public static final DeferredItem<BlockItem> BED = ITEMS.registerSimpleBlockItem("bed", BlockInit.BED);
     public static final DeferredItem<BlockItem> COFFIN = ITEMS.registerSimpleBlockItem("coffin", BlockInit.COFFIN);
     public static final DeferredItem<BlockItem> SLOPE = ITEMS.registerSimpleBlockItem("slope", BlockInit.SLOPE);
+    public static final DeferredItem<BlockItem> SMALL_CHEST = ITEMS.registerSimpleBlockItem("chest_small", BlockInit.SMALL_CHEST);
     public static final DeferredItem<BlockItem> CHAIR = ITEMS.registerSimpleBlockItem("chair", BlockInit.CHAIR);
     public static final DeferredItem<BlockItem> TABLE = ITEMS.registerSimpleBlockItem("table", BlockInit.TABLE);
 

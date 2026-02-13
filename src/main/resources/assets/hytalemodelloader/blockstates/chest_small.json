@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "hytalemodelloader:block/chest_small",
+      "y": 180
+    },
+    "facing=east": {
+      "model": "hytalemodelloader:block/chest_small",
+      "y": 270
+    },
+    "facing=south": {
+      "model": "hytalemodelloader:block/chest_small"
+    },
+    "facing=west": {
+      "model": "hytalemodelloader:block/chest_small",
+      "y": 90
+    }
+  }
+}

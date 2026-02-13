@@ -40,7 +40,7 @@ authors = "litehed"
 
 # The description text for the mod (multi line!) (#mandatory)
 description = '''
-Hytale Model Loader enables importing .blockymodel models from Hytale into Minecraft. Simply reference this loader in your model file and point to the blockymodel location to utilize this mod. Animation and entity support will come in the future.
+Hytale Model Loader enables importing .blockymodel models and their respective .blockyanim animations from Hytale into Minecraft. Simply reference this loader in your model file and point to the blockymodel location to utilize this mod. Entity support will come in the future.
 '''
 
 # The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.

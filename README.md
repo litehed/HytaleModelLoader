@@ -40,13 +40,10 @@ Models are defined using `.blockymodel` files (custom binary/text format) and re
 
 ### v1.1.0
 - [x] Check item and block scaling/translating using model json
-- [ ] Make bounding boxes fit models
-- [ ] Fix and clean up code
-
-### v1.2.0
 - [ ] Add parser for animation support `.blockyanim`
 - [ ] Load animations in for blocks and items
 - [ ] Create animation system to actually play and time these animations
+- [ ] Fix and clean up code
 
 ### v2.0.0
 - [ ] Implement entity model loading
