@@ -3,8 +3,8 @@ package com.litehed.hytalemodels.blocks.entity;
 import com.litehed.hytalemodels.HytaleModelLoader;
 import com.litehed.hytalemodels.blockymodel.BlockyModelGeometry;
 import com.litehed.hytalemodels.blockymodel.BlockyModelLoader;
+import com.litehed.hytalemodels.blockymodel.QuadBuilder;
 import com.litehed.hytalemodels.blockymodel.TransformCalculator;
-import com.litehed.hytalemodels.blockymodel.animations.AnimatedUVCalculator;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
@@ -30,95 +30,87 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class DirectQuadAnimatedRenderer implements BlockEntityRenderer<AnimatedChestBlockEntity, AnimatedChestRenderState> {
+public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S extends HytaleRenderState>
+        implements BlockEntityRenderer<T, S> {
 
     private final Map<String, BlockyModelGeometry> geometryCache = new HashMap<>();
 
-    private static final Material CHEST_TEXTURE_MATERIAL =
-            new Material(TextureAtlas.LOCATION_BLOCKS,
-                    Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "block/chest_small_texture"));
-
-    // Model location
-    private static final Identifier CHEST_MODEL =
-            Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "models/chest_small.blockymodel");
-
-    public DirectQuadAnimatedRenderer(BlockEntityRendererProvider.Context context) {
+    public HytaleBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
     }
 
     @Override
-    public AnimatedChestRenderState createRenderState() {
-        return new AnimatedChestRenderState();
-    }
-
-    @Override
-    public void extractRenderState(AnimatedChestBlockEntity blockEntity, AnimatedChestRenderState renderState,
-                                   float partialTick, Vec3 cameraPosition,
-                                   ModelFeatureRenderer.CrumblingOverlay breakProgress) {
+    public void extractRenderState(T blockEntity, S renderState, float partialTick,
+                                   Vec3 cameraPosition, ModelFeatureRenderer.CrumblingOverlay breakProgress) {
         BlockEntityRenderer.super.extractRenderState(blockEntity, renderState, partialTick, cameraPosition, breakProgress);
+
         renderState.modelName = blockEntity.getModelName();
-        renderState.isOpen = blockEntity.isOpen();
         renderState.animationTick = blockEntity.getAnimationTick();
         renderState.partialTick = partialTick;
 
         if (blockEntity.getLevel() != null) {
             renderState.ageInTicks = blockEntity.getLevel().getGameTime() + partialTick;
         }
+
+        extractAdditionalRenderState(blockEntity, renderState, partialTick);
+    }
+
+
+    protected void extractAdditionalRenderState(T blockEntity, S renderState, float partialTick) {
     }
 
     @Override
-    public void submit(AnimatedChestRenderState renderState, PoseStack poseStack,
-                       SubmitNodeCollector submitNodeCollector, CameraRenderState cameraRenderState) {
-
-
+    public void submit(S renderState, PoseStack poseStack, SubmitNodeCollector submitNodeCollector,
+                       CameraRenderState cameraRenderState) {
         if (renderState.modelName == null) {
             return;
         }
 
-        BlockyModelGeometry geometry = getOrLoadGeometry(CHEST_MODEL);
+        Identifier modelLocation = getModelLocation(renderState.modelName);
+        BlockyModelGeometry geometry = getOrLoadGeometry(modelLocation);
         if (geometry == null) {
+            HytaleModelLoader.LOGGER.warn("Failed to load geometry for model: {}", modelLocation);
             return;
         }
 
+        Material textureMaterial = getTextureMaterial(renderState.modelName);
         TextureAtlasSprite sprite = Minecraft.getInstance()
-                .getAtlasManager().get(CHEST_TEXTURE_MATERIAL);
+                .getAtlasManager().get(textureMaterial);
 
         poseStack.pushPose();
 
+        // Center the model in the block
         poseStack.translate(0.5, 0.5, 0.5);
 
-        Map<String, NodeTransform> nodeTransforms = calculateNodeTransforms(renderState, geometry);
+        // Calculate transforms for all nodes
+        Map<String, NodeTransform> nodeTransforms = calculateAnimationTransforms(renderState, geometry);
+
+        // Render each node with its shape
         List<BlockyModelGeometry.BlockyNode> nodes = geometry.getNodes();
         for (BlockyModelGeometry.BlockyNode node : nodes) {
             if (node.hasShape()) {
                 renderNode(poseStack, submitNodeCollector, node, sprite, nodeTransforms, renderState);
-
             }
         }
 
         poseStack.popPose();
     }
 
-    // Test anims
-    private Map<String, NodeTransform> calculateNodeTransforms(AnimatedChestRenderState renderState,
-                                                               BlockyModelGeometry geometry) {
-        Map<String, NodeTransform> transforms = new HashMap<>();
 
-        float time = renderState.ageInTicks * 0.1f;
-        float yOffset = (float) Math.sin(time) * 3.0f;
-        NodeTransform lidTransform = new NodeTransform(
-                new Vector3f(0, yOffset, 0),
-                new Quaternionf(),
-                new Vector3f(1, 1, 1)
-        );
+    protected abstract Map<String, NodeTransform> calculateAnimationTransforms(S renderState, BlockyModelGeometry geometry);
 
-        transforms.put("Lid", lidTransform);
 
-        return transforms;
+    protected Identifier getModelLocation(String modelName) {
+        return Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "models/" + modelName + ".blockymodel");
+    }
+
+    protected Material getTextureMaterial(String modelName) {
+        return new Material(TextureAtlas.LOCATION_BLOCKS,
+                Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "block/" + modelName + "_texture"));
     }
 
     private void renderNode(PoseStack poseStack, SubmitNodeCollector collector,
                             BlockyModelGeometry.BlockyNode node, TextureAtlasSprite sprite,
-                            Map<String, NodeTransform> nodeTransforms, AnimatedChestRenderState renderState) {
+                            Map<String, NodeTransform> nodeTransforms, S renderState) {
 
         poseStack.pushPose();
 
@@ -130,6 +122,8 @@ public class DirectQuadAnimatedRenderer implements BlockEntityRenderer<AnimatedC
         Vector3f min = new Vector3f(-halfSizes.x, -halfSizes.y, -halfSizes.z);
         Vector3f max = new Vector3f(halfSizes.x, halfSizes.y, halfSizes.z);
 
+        RenderType renderType = getRenderType();
+
         for (Direction direction : Direction.values()) {
             if (!shape.hasTextureLayout(direction)) {
                 continue;
@@ -137,21 +131,24 @@ public class DirectQuadAnimatedRenderer implements BlockEntityRenderer<AnimatedC
 
             BlockyModelGeometry.FaceTextureLayout texLayout = shape.getTextureLayout(direction);
 
-            RenderType renderType = RenderTypes.cutoutMovingBlock();
-
             collector.submitCustomGeometry(poseStack, renderType, (pose, buffer) ->
-                    renderQuad(buffer, pose, direction, min, max, sprite, texLayout, shape.getOriginalSize(), renderState));
+                    renderQuad(buffer, pose, direction, min, max, sprite, texLayout,
+                            shape.getOriginalSize(), renderState, false));
 
             // Render backface if double-sided
             if (shape.isDoubleSided()) {
                 collector.submitCustomGeometry(poseStack, renderType, (pose, buffer) ->
-                        renderQuadReversed(buffer, pose, direction, min, max, sprite, texLayout, shape.getOriginalSize(), renderState));
+                        renderQuad(buffer, pose, direction, min, max, sprite, texLayout,
+                                shape.getOriginalSize(), renderState, true));
             }
         }
 
         poseStack.popPose();
     }
 
+    protected RenderType getRenderType() {
+        return RenderTypes.cutoutMovingBlock();
+    }
 
     private void applyNodeTransform(PoseStack poseStack, BlockyModelGeometry.BlockyNode node,
                                     Map<String, NodeTransform> animTransforms) {
@@ -167,64 +164,67 @@ public class DirectQuadAnimatedRenderer implements BlockEntityRenderer<AnimatedC
         float centerZ = (worldPos.z + rotatedOffset.z) / 32.0f;
 
         poseStack.translate(centerX, centerY, centerZ);
-
         poseStack.mulPose(worldRot);
 
         NodeTransform animTransform = animTransforms.get(node.getName());
         if (animTransform != null) {
+            Vector3f animPos = animTransform.position();
             poseStack.translate(
-                    animTransform.position.x / 16.0f,
-                    animTransform.position.y / 16.0f,
-                    animTransform.position.z / 16.0f
+                    animPos.x / 16.0f,
+                    animPos.y / 16.0f,
+                    animPos.z / 16.0f
             );
-            poseStack.mulPose(animTransform.rotation);
-            poseStack.scale(animTransform.scale.x, animTransform.scale.y, animTransform.scale.z);
+            poseStack.mulPose(animTransform.rotation());
+
+            Vector3f animScale = animTransform.scale();
+            poseStack.scale(animScale.x, animScale.y, animScale.z);
         }
     }
 
     private void renderQuad(VertexConsumer buffer, PoseStack.Pose pose, Direction direction,
                             Vector3f min, Vector3f max, TextureAtlasSprite sprite,
                             BlockyModelGeometry.FaceTextureLayout texLayout, Vector3f originalSize,
-                            AnimatedChestRenderState renderState) {
+                            S renderState, boolean reversed) {
 
         Matrix4f poseMatrix = pose.pose();
         Matrix3f normalMatrix = pose.normal();
 
-        Vector3f n = new Vector3f(direction.getStepX(), direction.getStepY(), direction.getStepZ());
-        normalMatrix.transform(n);
+        int normalMult = reversed ? -1 : 1;
+        Vector3f normal = new Vector3f(
+                direction.getStepX() * normalMult,
+                direction.getStepY() * normalMult,
+                direction.getStepZ() * normalMult
+        );
+        normalMatrix.transform(normal);
 
-        float[][] uvCoords = AnimatedUVCalculator.calculateUVs(direction, texLayout, originalSize, sprite);
+        float[][] uvCoords = QuadBuilder.calculateUVCoordinates(direction, texLayout, originalSize, sprite);
 
-        Vector3f[] vertices = getQuadBuilderVertices(direction, min, max);
+        Vector3f[] vertices = getQuadVertices(direction, min, max);
 
-        for (int i = 0; i < 4; i++) {
-            vertex(buffer, poseMatrix, n, vertices[i].x, vertices[i].y, vertices[i].z,
-                    uvCoords[i][0], uvCoords[i][1], renderState.lightCoords);
+        if (reversed) {
+            for (int i = 3; i >= 0; i--) {
+                addVertex(buffer, poseMatrix, normal, vertices[i], uvCoords[i], renderState.lightCoords);
+            }
+        } else {
+            for (int i = 0; i < 4; i++) {
+                addVertex(buffer, poseMatrix, normal, vertices[i], uvCoords[i], renderState.lightCoords);
+            }
         }
     }
 
-    private void renderQuadReversed(VertexConsumer buffer, PoseStack.Pose pose, Direction direction,
-                                    Vector3f min, Vector3f max, TextureAtlasSprite sprite,
-                                    BlockyModelGeometry.FaceTextureLayout texLayout, Vector3f originalSize,
-                                    AnimatedChestRenderState renderState) {
+    private void addVertex(VertexConsumer buffer, Matrix4f pose, Vector3f normal,
+                           Vector3f vertex, float[] uv, int lightCoords) {
+        int blockLight = lightCoords & 0xFFFF;
+        int skyLight = (lightCoords >> 16) & 0xFFFF;
 
-        Matrix4f poseMatrix = pose.pose();
-        Matrix3f normalMatrix = pose.normal();
-
-        Vector3f n = new Vector3f(-direction.getStepX(), -direction.getStepY(), -direction.getStepZ());
-        normalMatrix.transform(n);
-
-        float[][] uvCoords = AnimatedUVCalculator.calculateUVs(direction, texLayout, originalSize, sprite);
-
-        Vector3f[] vertices = getQuadBuilderVertices(direction, min, max);
-
-        for (int i = 3; i >= 0; i--) {
-            vertex(buffer, poseMatrix, n, vertices[i].x, vertices[i].y, vertices[i].z,
-                    uvCoords[i][0], uvCoords[i][1], renderState.lightCoords);
-        }
+        buffer.addVertex(pose, vertex.x, vertex.y, vertex.z)
+                .setColor(255, 255, 255, 255)
+                .setUv(uv[0], uv[1])
+                .setUv2(blockLight, skyLight)
+                .setNormal(normal.x, normal.y, normal.z);
     }
 
-    private Vector3f[] getQuadBuilderVertices(Direction face, Vector3f min, Vector3f max) {
+    private Vector3f[] getQuadVertices(Direction face, Vector3f min, Vector3f max) {
         float x0 = min.x, y0 = min.y, z0 = min.z;
         float x1 = max.x, y1 = max.y, z1 = max.z;
 
@@ -256,61 +256,22 @@ public class DirectQuadAnimatedRenderer implements BlockEntityRenderer<AnimatedC
         };
     }
 
-
-    private void vertex(VertexConsumer buffer, Matrix4f pose, Vector3f normal,
-                        float x, float y, float z, float u, float v, int lightCoords) {
-        int blockLight = lightCoords & 0xFFFF;
-        int skyLight = (lightCoords >> 16) & 0xFFFF;
-
-        buffer.addVertex(pose, x, y, z)
-                .setColor(255, 255, 255, 255)
-                .setUv(u, v)
-                .setUv2(blockLight, skyLight)
-                .setNormal(normal.x, normal.y, normal.z);
-    }
-
-
     private BlockyModelGeometry getOrLoadGeometry(Identifier modelLocation) {
-        if (geometryCache.containsKey(modelLocation.toString())) {
-            return geometryCache.get(modelLocation.toString());
+        String key = modelLocation.toString();
+
+        if (geometryCache.containsKey(key)) {
+            return geometryCache.get(key);
         }
 
         try {
             BlockyModelGeometry geometry = BlockyModelLoader.INSTANCE.loadGeometry(
                     new BlockyModelGeometry.Settings(modelLocation)
             );
-            geometryCache.put(modelLocation.toString(), geometry);
+            geometryCache.put(key, geometry);
             return geometry;
         } catch (Exception e) {
+            HytaleModelLoader.LOGGER.error("Failed to load geometry for {}: {}", modelLocation, e.getMessage());
             return null;
         }
     }
-
-
-    private static class NodeTransform {
-        final Vector3f position;
-        final Quaternionf rotation;
-        final Vector3f scale;
-
-        NodeTransform(Vector3f position, Quaternionf rotation, Vector3f scale) {
-            this.position = position;
-            this.rotation = rotation;
-            this.scale = scale;
-        }
-    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

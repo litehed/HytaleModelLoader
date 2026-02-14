@@ -40,9 +40,11 @@ Models are defined using `.blockymodel` files (custom binary/text format) and re
 
 ### v1.1.0
 - [x] Check item and block scaling/translating using model json
+- [x] Implement custom BlockEntities for animation support since baked models cannot
 - [ ] Add parser for animation support `.blockyanim`
-- [ ] Load animations in for blocks and items
+- [ ] Load animations in for blocks
 - [ ] Create animation system to actually play and time these animations
+- [ ] Add wiki to show how to use different parts of the mod
 - [ ] Fix and clean up code
 
 ### v2.0.0

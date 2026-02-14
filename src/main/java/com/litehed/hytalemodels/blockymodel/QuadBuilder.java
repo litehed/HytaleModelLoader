@@ -175,7 +175,7 @@ public class QuadBuilder {
      * @param sprite the TextureAtlasSprite to use for UV calculation
      * @return an array of UV coordinates for each vertex of the face
      */
-    private static float[][] calculateUVCoordinates(Direction face, BlockyModelGeometry.FaceTextureLayout layout,
+    public static float[][] calculateUVCoordinates(Direction face, BlockyModelGeometry.FaceTextureLayout layout,
                                                     Vector3f size, TextureAtlasSprite sprite) {
         UVSize uvSize = getUVSizeForFace(face, size);
         UVBounds bounds = calculateUVBounds(layout, uvSize, sprite);
