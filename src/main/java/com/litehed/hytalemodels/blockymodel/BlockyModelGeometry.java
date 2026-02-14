@@ -171,6 +171,10 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
         }
     }
 
+    public List<BlockyNode> getNodes() {
+        return nodes;
+    }
+
     public record Settings(Identifier modelLocation) {
         public Identifier modelLocation() {
             return this.modelLocation;
