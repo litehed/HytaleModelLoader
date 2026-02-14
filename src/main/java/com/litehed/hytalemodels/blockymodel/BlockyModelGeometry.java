@@ -132,9 +132,17 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
             }
 
             FaceTextureLayout texLayout = shape.getTextureLayout(direction);
-            Pair<BakedQuad, Direction> quad = QuadBuilder.createQuad(
-                    direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform
-            );
+
+            boolean shouldReverse = shape.needsWindingReversal();
+
+            Pair<BakedQuad, Direction> quad;
+            if (shouldReverse) {
+                quad = QuadBuilder.createReversedQuad(
+                        direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform);
+            } else {
+                quad = QuadBuilder.createQuad(
+                        direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform);
+            }
 
             addQuadToBuilder(builder, quad);
 
@@ -150,8 +158,15 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
 
             // Backface if double-sided
             if (shape.isDoubleSided()) {
-                Pair<BakedQuad, Direction> backQuad = QuadBuilder.createReversedQuad(
-                        direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform);
+                Pair<BakedQuad, Direction> backQuad;
+                if (shouldReverse) {
+                    // If winding is reversed, backface should be normal
+                    backQuad = QuadBuilder.createQuad(
+                            direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform);
+                } else {
+                    backQuad = QuadBuilder.createReversedQuad(
+                            direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform);
+                }
                 builder.addUnculledFace(backQuad.getLeft());
             }
         }
@@ -240,6 +255,7 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
         private final boolean doubleSided;
         private final Vector3f offset;
         private final Vector3f stretch;
+        private final boolean needsWindingReversal;
         private final Vector3f originalSize;
         private final Vector3f size;
         private final Map<Direction, FaceTextureLayout> textureLayout;
@@ -254,10 +270,16 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
             this.stretch = new Vector3f(stretch);
             this.originalSize = new Vector3f(size);
             this.size = new Vector3f(
-                    size.x * Math.abs(stretch.x),
-                    size.y * Math.abs(stretch.y),
-                    size.z * Math.abs(stretch.z)
+                    size.x * stretch.x,
+                    size.y * stretch.y,
+                    size.z * stretch.z
             );
+
+            int negativeCount = 0;
+            if (stretch.x < 0) negativeCount++;
+            if (stretch.y < 0) negativeCount++;
+            if (stretch.z < 0) negativeCount++;
+            this.needsWindingReversal = (negativeCount % 2) == 1;
 
             // Immutable map
             this.textureLayout = Collections.unmodifiableMap(
@@ -290,6 +312,10 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
 
         public Vector3f getStretch() {
             return stretch;
+        }
+
+        public boolean needsWindingReversal() {
+            return needsWindingReversal;
         }
 
         public Vector3f getOriginalSize() {

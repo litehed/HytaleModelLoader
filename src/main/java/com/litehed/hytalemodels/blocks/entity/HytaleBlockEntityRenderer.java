@@ -130,16 +130,17 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
             }
 
             BlockyModelGeometry.FaceTextureLayout texLayout = shape.getTextureLayout(direction);
+            boolean shouldReverse = shape.needsWindingReversal();
 
             collector.submitCustomGeometry(poseStack, renderType, (pose, buffer) ->
                     renderQuad(buffer, pose, direction, min, max, sprite, texLayout,
-                            shape.getOriginalSize(), renderState, false));
+                            shape.getOriginalSize(), renderState, shouldReverse));
 
             // Render backface if double-sided
             if (shape.isDoubleSided()) {
                 collector.submitCustomGeometry(poseStack, renderType, (pose, buffer) ->
                         renderQuad(buffer, pose, direction, min, max, sprite, texLayout,
-                                shape.getOriginalSize(), renderState, true));
+                                shape.getOriginalSize(), renderState, !shouldReverse));
             }
         }
 
@@ -199,7 +200,7 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
 
         float[][] uvCoords = QuadBuilder.calculateUVCoordinates(direction, texLayout, originalSize, sprite);
 
-        Vector3f[] vertices = getQuadVertices(direction, min, max);
+        Vector3f[] vertices = QuadBuilder.getFaceVertices(direction, min, max);
 
         if (reversed) {
             for (int i = 3; i >= 0; i--) {
@@ -224,37 +225,6 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
                 .setNormal(normal.x, normal.y, normal.z);
     }
 
-    private Vector3f[] getQuadVertices(Direction face, Vector3f min, Vector3f max) {
-        float x0 = min.x, y0 = min.y, z0 = min.z;
-        float x1 = max.x, y1 = max.y, z1 = max.z;
-
-        return switch (face) {
-            case DOWN -> new Vector3f[]{
-                    new Vector3f(x0, y0, z0), new Vector3f(x1, y0, z0),
-                    new Vector3f(x1, y0, z1), new Vector3f(x0, y0, z1)
-            };
-            case UP -> new Vector3f[]{
-                    new Vector3f(x0, y1, z1), new Vector3f(x1, y1, z1),
-                    new Vector3f(x1, y1, z0), new Vector3f(x0, y1, z0)
-            };
-            case NORTH -> new Vector3f[]{
-                    new Vector3f(x1, y0, z0), new Vector3f(x0, y0, z0),
-                    new Vector3f(x0, y1, z0), new Vector3f(x1, y1, z0)
-            };
-            case SOUTH -> new Vector3f[]{
-                    new Vector3f(x0, y0, z1), new Vector3f(x1, y0, z1),
-                    new Vector3f(x1, y1, z1), new Vector3f(x0, y1, z1)
-            };
-            case WEST -> new Vector3f[]{
-                    new Vector3f(x0, y0, z0), new Vector3f(x0, y0, z1),
-                    new Vector3f(x0, y1, z1), new Vector3f(x0, y1, z0)
-            };
-            case EAST -> new Vector3f[]{
-                    new Vector3f(x1, y0, z1), new Vector3f(x1, y0, z0),
-                    new Vector3f(x1, y1, z0), new Vector3f(x1, y1, z1)
-            };
-        };
-    }
 
     private BlockyModelGeometry getOrLoadGeometry(Identifier modelLocation) {
         String key = modelLocation.toString();

@@ -367,7 +367,7 @@ public class QuadBuilder {
      * @param max  the maximum coordinates of the face
      * @return an array of 4 Vector3f vertices
      */
-    private static Vector3f[] getFaceVertices(Direction face, Vector3f min, Vector3f max) {
+    public static Vector3f[] getFaceVertices(Direction face, Vector3f min, Vector3f max) {
         float x0 = min.x, y0 = min.y, z0 = min.z;
         float x1 = max.x, y1 = max.y, z1 = max.z;
 
