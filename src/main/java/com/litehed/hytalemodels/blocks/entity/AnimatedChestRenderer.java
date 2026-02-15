@@ -42,18 +42,18 @@ public class AnimatedChestRenderer extends HytaleBlockEntityRenderer<AnimatedChe
 
         BlockyModelGeometry.BlockyNode lidNode = findNodeByName(geometry, "Lid");
         if (lidNode != null) {
-            applyTransformToDescendants(lidNode, rotation, transforms);
+            applyTransformToDescendantsById(lidNode, rotation, transforms);
         }
 
         return transforms;
     }
 
-    private void applyTransformToDescendants(BlockyModelGeometry.BlockyNode node,
-                                             Quaternionf rotation,
-                                             Map<String, NodeTransform> transforms) {
+    private void applyTransformToDescendantsById(BlockyModelGeometry.BlockyNode node,
+                                                 Quaternionf rotation,
+                                                 Map<String, NodeTransform> transforms) {
         for (BlockyModelGeometry.BlockyNode child : node.getChildren()) {
-            transforms.put(child.getName(), NodeTransform.rotation(rotation));
-            applyTransformToDescendants(child, rotation, transforms);
+            transforms.put(child.getId(), NodeTransform.rotation(rotation));
+            applyTransformToDescendantsById(child, rotation, transforms);
         }
     }
 

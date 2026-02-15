@@ -160,13 +160,16 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         float centerY = ((worldPos.y + rotatedOffset.y) - 16.0f) / 32.0f;
         float centerZ = (worldPos.z + rotatedOffset.z) / 32.0f;
 
-        NodeTransform effectiveTransform = effectiveTransforms.get(node.getName());
+        NodeTransform effectiveTransform = effectiveTransforms.get(node.getId());
+        if (effectiveTransform == null) {
+            effectiveTransform = effectiveTransforms.get(node.getName());
+        }
 
         if (effectiveTransform != null && !effectiveTransform.equals(NodeTransform.identity())) {
             Vector3f pivotBlock;
             BlockyModelGeometry.BlockyNode parent = node.getParent();
 
-            if (parent != null && effectiveTransforms.containsKey(parent.getName())) {
+            if (parent != null && (effectiveTransforms.containsKey(parent.getId()) || effectiveTransforms.containsKey(parent.getName()))) {
                 // Child node
                 Vector3f parentWorldPos = TransformCalculator.calculateWorldPosition(parent);
                 float pivotX = parentWorldPos.x / 32.0f;
