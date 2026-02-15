@@ -65,6 +65,10 @@ public class BlockyModelParser {
 
         allNodes.add(node);
 
+        if (parent != null) {
+            parent.addChild(node);
+        }
+
         // Parse children recursively
         if (nodeObj.has("children")) {
             JsonArray children = nodeObj.getAsJsonArray("children");

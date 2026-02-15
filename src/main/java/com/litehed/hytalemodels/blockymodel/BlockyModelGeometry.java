@@ -18,10 +18,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.litehed.hytalemodels.blockymodel.QuadBuilder.DEBUG_BORDERS;
 
@@ -203,6 +200,7 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
         private final Quaternionf orientation;
         private final BlockyShape shape;
         private final BlockyNode parent;
+        private final List<BlockyNode> children;
 
         public BlockyNode(String id, String name, Vector3f position, Quaternionf orientation,
                           BlockyShape shape, BlockyNode parent) {
@@ -213,6 +211,7 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
             this.orientation = new Quaternionf(orientation);
             this.shape = shape;
             this.parent = parent;
+            this.children = new ArrayList<>();
         }
 
         // Getters only - no setters (immutable)
@@ -239,6 +238,15 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
         public BlockyNode getParent() {
             return parent;
         }
+
+        public List<BlockyNode> getChildren() {
+            return Collections.unmodifiableList(children);
+        }
+
+        void addChild(BlockyNode child) {
+            this.children.add(child);
+        }
+
 
         public boolean hasShape() {
             return shape != null && shape.isVisible();

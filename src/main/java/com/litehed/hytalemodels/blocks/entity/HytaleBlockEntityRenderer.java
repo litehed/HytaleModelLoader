@@ -78,13 +78,10 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
 
         poseStack.pushPose();
 
-        // Center the model in the block
         poseStack.translate(0.5, 0.5, 0.5);
 
-        // Calculate transforms for all nodes
         Map<String, NodeTransform> nodeTransforms = calculateAnimationTransforms(renderState, geometry);
 
-        // Render each node with its shape
         List<BlockyModelGeometry.BlockyNode> nodes = geometry.getNodes();
         for (BlockyModelGeometry.BlockyNode node : nodes) {
             if (node.hasShape()) {
@@ -111,7 +108,6 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
     private void renderNode(PoseStack poseStack, SubmitNodeCollector collector,
                             BlockyModelGeometry.BlockyNode node, TextureAtlasSprite sprite,
                             Map<String, NodeTransform> nodeTransforms, S renderState) {
-
         poseStack.pushPose();
 
         applyNodeTransform(poseStack, node, nodeTransforms);
@@ -152,7 +148,7 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
     }
 
     private void applyNodeTransform(PoseStack poseStack, BlockyModelGeometry.BlockyNode node,
-                                    Map<String, NodeTransform> animTransforms) {
+                                    Map<String, NodeTransform> effectiveTransforms) {
         Vector3f worldPos = TransformCalculator.calculateWorldPosition(node);
         Quaternionf worldRot = TransformCalculator.calculateWorldOrientation(node);
 
@@ -164,21 +160,48 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         float centerY = ((worldPos.y + rotatedOffset.y) - 16.0f) / 32.0f;
         float centerZ = (worldPos.z + rotatedOffset.z) / 32.0f;
 
-        poseStack.translate(centerX, centerY, centerZ);
-        poseStack.mulPose(worldRot);
+        NodeTransform effectiveTransform = effectiveTransforms.get(node.getName());
 
-        NodeTransform animTransform = animTransforms.get(node.getName());
-        if (animTransform != null) {
-            Vector3f animPos = animTransform.position();
+        if (effectiveTransform != null && !effectiveTransform.equals(NodeTransform.identity())) {
+            Vector3f pivotBlock;
+            BlockyModelGeometry.BlockyNode parent = node.getParent();
+
+            if (parent != null && effectiveTransforms.containsKey(parent.getName())) {
+                // Child node
+                Vector3f parentWorldPos = TransformCalculator.calculateWorldPosition(parent);
+                float pivotX = parentWorldPos.x / 32.0f;
+                float pivotY = (parentWorldPos.y - 16.0f) / 32.0f;
+                float pivotZ = parentWorldPos.z / 32.0f;
+                pivotBlock = new Vector3f(pivotX, pivotY, pivotZ);
+            } else {
+                // Parent node or standalone node
+                float pivotX = worldPos.x / 32.0f;
+                float pivotY = (worldPos.y - 16.0f) / 32.0f;
+                float pivotZ = worldPos.z / 32.0f;
+                pivotBlock = new Vector3f(pivotX, pivotY, pivotZ);
+            }
+
+            poseStack.translate(pivotBlock.x, pivotBlock.y, pivotBlock.z);
+
+            poseStack.mulPose(effectiveTransform.rotation());
+
+            Vector3f animPos = effectiveTransform.position();
+            poseStack.translate(animPos.x, animPos.y, animPos.z);
+
             poseStack.translate(
-                    animPos.x / 16.0f,
-                    animPos.y / 16.0f,
-                    animPos.z / 16.0f
+                    centerX - pivotBlock.x,
+                    centerY - pivotBlock.y,
+                    centerZ - pivotBlock.z
             );
-            poseStack.mulPose(animTransform.rotation());
 
-            Vector3f animScale = animTransform.scale();
+            poseStack.mulPose(worldRot);
+
+            Vector3f animScale = effectiveTransform.scale();
             poseStack.scale(animScale.x, animScale.y, animScale.z);
+        } else {
+            // No animation
+            poseStack.translate(centerX, centerY, centerZ);
+            poseStack.mulPose(worldRot);
         }
     }
 
