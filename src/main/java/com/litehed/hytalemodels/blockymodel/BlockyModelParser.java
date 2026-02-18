@@ -14,6 +14,8 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.litehed.hytalemodels.blockymodel.ParserUtil.*;
+
 public class BlockyModelParser {
 
     private static final float DEFAULT_SIZE = 16.0f;
@@ -320,19 +322,5 @@ public class BlockyModelParser {
         if (angle != 0 && angle != 90 && angle != 180 && angle != 270) {
             throw new JsonParseException("Invalid angle: " + angle + ". Must be 0, 90, 180, or 270");
         }
-    }
-
-    // Utility methods to get values with defaults
-
-    private static float getFloatOrDefault(JsonObject obj, String key, float defaultValue) {
-        return obj.has(key) ? obj.get(key).getAsFloat() : defaultValue;
-    }
-
-    private static int getIntOrDefault(JsonObject obj, String key, int defaultValue) {
-        return obj.has(key) ? obj.get(key).getAsInt() : defaultValue;
-    }
-
-    private static boolean getBooleanOrDefault(JsonObject obj, String key, boolean defaultValue) {
-        return obj.has(key) ? obj.get(key).getAsBoolean() : defaultValue;
     }
 }

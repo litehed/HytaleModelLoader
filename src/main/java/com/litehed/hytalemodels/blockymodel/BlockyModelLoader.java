@@ -61,7 +61,7 @@ public class BlockyModelLoader implements UnbakedModelLoader<BlockyModel>, Resou
         return geometryCache.computeIfAbsent(settings, (data) -> {
             ResourceManager manager = Minecraft.getInstance().getResourceManager();
             Resource resource = manager.getResource(settings.modelLocation()).orElseThrow();
-            try (BlockyModelTokenizer tokenizer = new BlockyModelTokenizer(resource.open())) {
+            try (BlockyTokenizer tokenizer = new BlockyTokenizer(resource.open())) {
                 return BlockyModelGeometry.parse(tokenizer, data);
             } catch (FileNotFoundException e) {
                 throw new RuntimeException("Could not find BlockyModel file", e);

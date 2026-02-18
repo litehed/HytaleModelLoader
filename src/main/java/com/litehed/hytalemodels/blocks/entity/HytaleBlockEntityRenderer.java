@@ -46,10 +46,7 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         renderState.modelName = blockEntity.getModelName();
         renderState.animationTick = blockEntity.getAnimationTick();
         renderState.partialTick = partialTick;
-
-        if (blockEntity.getLevel() != null) {
-            renderState.ageInTicks = blockEntity.getLevel().getGameTime() + partialTick;
-        }
+        renderState.ageInTicks = (blockEntity.getAnimationTick() + partialTick) * 4;
 
         extractAdditionalRenderState(blockEntity, renderState, partialTick);
     }
@@ -165,41 +162,52 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
             effectiveTransform = effectiveTransforms.get(node.getName());
         }
 
-        if (effectiveTransform != null && !effectiveTransform.equals(NodeTransform.identity())) {
-            Vector3f pivotBlock;
-            BlockyModelGeometry.BlockyNode parent = node.getParent();
+        NodeTransform parentAnimTransform = getParentAnimationTransform(node, effectiveTransforms);
 
-            if (parent != null && (effectiveTransforms.containsKey(parent.getId()) || effectiveTransforms.containsKey(parent.getName()))) {
-                // Child node
+        boolean hasOwnAnimation = effectiveTransform != null && !effectiveTransform.equals(NodeTransform.identity());
+        boolean parentHasAnimation = parentAnimTransform != null && !parentAnimTransform.equals(NodeTransform.identity());
+
+        if (hasOwnAnimation || parentHasAnimation) {
+            Vector3f parentPivot = null;
+            BlockyModelGeometry.BlockyNode parent = node.getParent();
+            if (parent != null && (effectiveTransforms.containsKey(parent.getId()) ||
+                    effectiveTransforms.containsKey(parent.getName()))) {
                 Vector3f parentWorldPos = TransformCalculator.calculateWorldPosition(parent);
-                float pivotX = parentWorldPos.x / 32.0f;
-                float pivotY = (parentWorldPos.y - 16.0f) / 32.0f;
-                float pivotZ = parentWorldPos.z / 32.0f;
-                pivotBlock = new Vector3f(pivotX, pivotY, pivotZ);
-            } else {
-                // Parent node or standalone node
-                float pivotX = worldPos.x / 32.0f;
-                float pivotY = (worldPos.y - 16.0f) / 32.0f;
-                float pivotZ = worldPos.z / 32.0f;
-                pivotBlock = new Vector3f(pivotX, pivotY, pivotZ);
+                parentPivot = new Vector3f(
+                        parentWorldPos.x / 32.0f,
+                        (parentWorldPos.y - 16.0f) / 32.0f,
+                        parentWorldPos.z / 32.0f
+                );
             }
 
-            poseStack.translate(pivotBlock.x, pivotBlock.y, pivotBlock.z);
+            float childPivotX = worldPos.x / 32.0f;
+            float childPivotY = (worldPos.y - 16.0f) / 32.0f;
+            float childPivotZ = worldPos.z / 32.0f;
 
-            poseStack.mulPose(effectiveTransform.rotation());
+            if (parentHasAnimation && parentPivot != null) {
+                poseStack.translate(parentPivot.x, parentPivot.y, parentPivot.z);
 
-            Vector3f animPos = effectiveTransform.position();
-            poseStack.translate(animPos.x, animPos.y, animPos.z);
+                poseStack.mulPose(parentAnimTransform.rotation());
+                Vector3f parentPos = parentAnimTransform.position();
+                poseStack.translate(parentPos.x, parentPos.y, parentPos.z);
 
-            poseStack.translate(
-                    centerX - pivotBlock.x,
-                    centerY - pivotBlock.y,
-                    centerZ - pivotBlock.z
-            );
+                poseStack.translate(-parentPivot.x, -parentPivot.y, -parentPivot.z);
+            }
 
+            if (hasOwnAnimation) {
+                poseStack.translate(childPivotX, childPivotY, childPivotZ);
+
+                poseStack.mulPose(effectiveTransform.rotation());
+                Vector3f childAnimPos = effectiveTransform.position();
+                poseStack.translate(childAnimPos.x, childAnimPos.y, childAnimPos.z);
+
+                poseStack.translate(-childPivotX, -childPivotY, -childPivotZ);
+            }
+
+            poseStack.translate(centerX, centerY, centerZ);
             poseStack.mulPose(worldRot);
 
-            Vector3f animScale = effectiveTransform.scale();
+            Vector3f animScale = effectiveTransform != null ? effectiveTransform.scale() : new Vector3f(1, 1, 1);
             poseStack.scale(animScale.x, animScale.y, animScale.z);
         } else {
             // No animation
@@ -207,6 +215,25 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
             poseStack.mulPose(worldRot);
         }
     }
+
+    private NodeTransform getParentAnimationTransform(BlockyModelGeometry.BlockyNode node,
+                                                      Map<String, NodeTransform> effectiveTransforms) {
+        BlockyModelGeometry.BlockyNode current = node.getParent();
+
+        while (current != null) {
+            NodeTransform transform = effectiveTransforms.get(current.getId());
+            if (transform == null) {
+                transform = effectiveTransforms.get(current.getName());
+            }
+            if (transform != null && !transform.equals(NodeTransform.identity())) {
+                return transform;
+            }
+            current = current.getParent();
+        }
+
+        return null;
+    }
+
 
     private void renderQuad(VertexConsumer buffer, PoseStack.Pose pose, Direction direction,
                             Vector3f min, Vector3f max, TextureAtlasSprite sprite,
@@ -251,6 +278,28 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
                 .setNormal(normal.x, normal.y, normal.z);
     }
 
+    protected BlockyModelGeometry.BlockyNode findNodeByName(BlockyModelGeometry geometry, String name) {
+        return findNodeByNameRecursive(geometry.getNodes(), name);
+    }
+
+    private BlockyModelGeometry.BlockyNode findNodeByNameRecursive(
+            List<BlockyModelGeometry.BlockyNode> nodes, String name) {
+        for (BlockyModelGeometry.BlockyNode node : nodes) {
+            if (node.getName().equals(name)) return node;
+            BlockyModelGeometry.BlockyNode found = findNodeByNameRecursive(node.getChildren(), name);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    protected void applyTransformToDescendants(BlockyModelGeometry.BlockyNode node,
+                                               Quaternionf rotation,
+                                               Map<String, NodeTransform> transforms) {
+        for (BlockyModelGeometry.BlockyNode child : node.getChildren()) {
+            transforms.put(child.getId(), NodeTransform.rotation(rotation));
+            applyTransformToDescendants(child, rotation, transforms);
+        }
+    }
 
     private BlockyModelGeometry getOrLoadGeometry(Identifier modelLocation) {
         String key = modelLocation.toString();

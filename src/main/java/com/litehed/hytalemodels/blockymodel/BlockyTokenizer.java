@@ -8,16 +8,16 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 
-public class BlockyModelTokenizer implements AutoCloseable {
+public class BlockyTokenizer implements AutoCloseable {
     private final BufferedReader lineReader;
     private final JsonObject root;
 
     /**
-     * Creates a new BlockyModelTokenizer that reads from the given InputStream
+     * Creates a new BlockyTokenizer that reads from the given InputStream
      *
      * @param inputStream The InputStream to read from
      */
-    public BlockyModelTokenizer(InputStream inputStream) {
+    public BlockyTokenizer(InputStream inputStream) {
         this.lineReader = new BufferedReader(new InputStreamReader(inputStream, Charsets.UTF_8));
         this.root = JsonParser.parseReader(lineReader).getAsJsonObject();
     }

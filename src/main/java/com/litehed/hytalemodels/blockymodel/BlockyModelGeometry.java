@@ -44,7 +44,7 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
      * @param settings  the settings to use for parsing
      * @return a new BlockyModelGeometry instance
      */
-    public static BlockyModelGeometry parse(BlockyModelTokenizer tokenizer, Settings settings) {
+    public static BlockyModelGeometry parse(BlockyTokenizer tokenizer, Settings settings) {
         List<BlockyNode> nodes = BlockyModelParser.parseNodes(tokenizer.getRoot());
         return new BlockyModelGeometry(nodes, settings.modelLocation());
     }

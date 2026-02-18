@@ -1,16 +1,19 @@
 package com.litehed.hytalemodels.blocks.entity;
 
+import com.litehed.hytalemodels.HytaleModelLoader;
 import com.litehed.hytalemodels.blockymodel.BlockyModelGeometry;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationDefinition;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationLoader;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import org.joml.Quaternionf;
+import net.minecraft.resources.Identifier;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class AnimatedChestRenderer extends HytaleBlockEntityRenderer<AnimatedChestBlockEntity, AnimatedChestRenderState> {
 
-    private static final float ANIMATION_SPEED = 0.05f;
+    private static final float ANIMATION_SPEED = 0.01f;
     private static final float MAX_LID_OFFSET = 3.0f;
 
     private static final float MAX_LID_ANGLE = 45;
@@ -31,46 +34,47 @@ public class AnimatedChestRenderer extends HytaleBlockEntityRenderer<AnimatedChe
         renderState.isOpen = blockEntity.isOpen();
     }
 
+    private Identifier getAnimationFile(AnimatedChestRenderState renderState) {
+        if (renderState.isOpen) {
+            return Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "animations/chest_small/chest_open.blockyanim");
+        }
+        return Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "animations/chest_small/chest_close.blockyanim");
+    }
+
     @Override
     protected Map<String, NodeTransform> calculateAnimationTransforms(AnimatedChestRenderState renderState,
                                                                       BlockyModelGeometry geometry) {
-        Map<String, NodeTransform> transforms = new HashMap<>();
-        float time = renderState.ageInTicks * ANIMATION_SPEED;
-        float angle = (float) Math.sin(time) * MAX_LID_ANGLE;
-        Quaternionf rotation = new Quaternionf().rotateX((float) Math.toRadians(-Math.abs(angle)));
-        transforms.put("Lid", NodeTransform.rotation(rotation));
+        // For use of basic animations like base minecraft system
+//        Map<String, NodeTransform> transforms = new HashMap<>();
+//        float time = renderState.ageInTicks * ANIMATION_SPEED;
+//        float angle = (float) Math.sin(time) * MAX_LID_ANGLE;
+//        Quaternionf rotation = new Quaternionf().rotateX((float) Math.toRadians(-Math.abs(angle)));
+//        transforms.put("Lid", NodeTransform.rotation(rotation));
+//
+//        BlockyModelGeometry.BlockyNode lidNode = findNodeByName(geometry, "Lid");
+//        if (lidNode != null) {
+//            applyTransformToDescendantsById(lidNode, rotation, transforms);
+//        }
+//
+//        return transforms;
 
-        BlockyModelGeometry.BlockyNode lidNode = findNodeByName(geometry, "Lid");
-        if (lidNode != null) {
-            applyTransformToDescendantsById(lidNode, rotation, transforms);
-        }
+        // For use of an animation file
+        Identifier animationFile = getAnimationFile(renderState);
+        try {
+            BlockyAnimationDefinition definition = BlockyAnimationLoader.INSTANCE.loadAnimation(animationFile);
 
-        return transforms;
-    }
-
-    private void applyTransformToDescendantsById(BlockyModelGeometry.BlockyNode node,
-                                                 Quaternionf rotation,
-                                                 Map<String, NodeTransform> transforms) {
-        for (BlockyModelGeometry.BlockyNode child : node.getChildren()) {
-            transforms.put(child.getId(), NodeTransform.rotation(rotation));
-            applyTransformToDescendantsById(child, rotation, transforms);
-        }
-    }
-
-    private BlockyModelGeometry.BlockyNode findNodeByName(BlockyModelGeometry geometry, String name) {
-        return findNodeByNameRecursive(geometry.getNodes(), name);
-    }
-
-    private BlockyModelGeometry.BlockyNode findNodeByNameRecursive(List<BlockyModelGeometry.BlockyNode> nodes, String name) {
-        for (BlockyModelGeometry.BlockyNode node : nodes) {
-            if (node.getName().equals(name)) {
-                return node;
+            if (definition == null) {
+                HytaleModelLoader.LOGGER.warn("Animation definition is null for: {}", animationFile);
+                return new HashMap<>();
             }
-            BlockyModelGeometry.BlockyNode found = findNodeByNameRecursive(node.getChildren(), name);
-            if (found != null) {
-                return found;
-            }
+            HytaleModelLoader.LOGGER.debug("Animation loaded - duration: {}, ageInTicks: {}",
+                    definition.getDuration(), renderState.ageInTicks);
+
+            BlockyAnimationPlayer player = new BlockyAnimationPlayer(definition);
+            return player.calculateTransforms(renderState.ageInTicks);
+        } catch (Exception e) {
+            HytaleModelLoader.LOGGER.error("Error playing animation: {}", e.getMessage());
+            return new HashMap<>();
         }
-        return null;
     }
 }

@@ -10,12 +10,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 
-public class HytaleTestBlock extends Block {
+public class HytaleBlockBase extends Block {
 
     public static final EnumProperty<Direction> FACING = HorizontalDirectionalBlock.FACING;
 
 
-    public HytaleTestBlock(Properties properties) {
+    public HytaleBlockBase(Properties properties) {
         super(properties.noOcclusion());
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
     }

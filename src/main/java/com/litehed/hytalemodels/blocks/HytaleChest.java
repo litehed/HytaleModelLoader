@@ -8,11 +8,13 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import org.jspecify.annotations.Nullable;
 
-public class HytaleChest extends HytaleTestBlock implements EntityBlock {
+public class HytaleChest extends HytaleBlockBase implements EntityBlock {
     public HytaleChest(Properties properties) {
         super(properties);
     }
@@ -24,7 +26,7 @@ public class HytaleChest extends HytaleTestBlock implements EntityBlock {
 
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hitResult) {
-        if (!level.isClientSide()) {
+        if (level.isClientSide()) {
             BlockEntity entity = level.getBlockEntity(pos);
             if (entity instanceof AnimatedChestBlockEntity chest) {
                 if (chest.isOpen()) {
@@ -35,6 +37,18 @@ public class HytaleChest extends HytaleTestBlock implements EntityBlock {
             }
         }
         return InteractionResult.SUCCESS;
+    }
+
+    @Override
+    public @Nullable <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> blockEntityType) {
+        if (level.isClientSide()) {
+            return (lvl, pos, blockState, blockEntity) -> {
+                if (blockEntity instanceof AnimatedChestBlockEntity chest) {
+                    AnimatedChestBlockEntity.tick(lvl, pos, blockState, chest);
+                }
+            };
+        }
+        return null;
     }
 
     @Override

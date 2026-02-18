@@ -4,7 +4,6 @@ import com.litehed.hytalemodels.HytaleModelLoader;
 import com.litehed.hytalemodels.init.BlockEntityInit;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
@@ -14,11 +13,10 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
 
     private static final String NBT_KEY = "ChestData";
     private static final String NBT_IS_OPEN = "IsOpen";
-    private static final String NBT_ANIM_TICK = "AnimationTick";
 
     private boolean isOpen = false;
-    private final AnimationState openAnimationState = new AnimationState();
-    private int animationTick = 0;
+    private int openTick = 0;
+    private int closeTick = 0;
 
     public AnimatedChestBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntityInit.CHEST_TEST_ENT.get(), pos, state, "chest_small");
@@ -30,10 +28,10 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
     public void openChest() {
         if (!isOpen) {
             isOpen = true;
+            openTick = 0;
 
             if (level != null && level.isClientSide()) {
                 long gameTime = level.getGameTime();
-                openAnimationState.start((int) gameTime);
                 HytaleModelLoader.LOGGER.debug("Client: Starting chest open animation at {}", gameTime);
             }
 
@@ -48,9 +46,8 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
     public void closeChest() {
         if (isOpen) {
             isOpen = false;
-
+            closeTick = 0;
             if (level != null && level.isClientSide()) {
-                openAnimationState.stop();
                 HytaleModelLoader.LOGGER.debug("Client: Stopping chest open animation");
             }
 
@@ -59,9 +56,6 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
         }
     }
 
-    /**
-     * Toggles the chest open/closed state.
-     */
     public void toggleChest() {
         if (isOpen) {
             closeChest();
@@ -70,17 +64,18 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
         }
     }
 
+    /**
+     * Toggles the chest open/closed state.
+     */
+
     public boolean isOpen() {
         return isOpen;
     }
 
-    public AnimationState getOpenAnimationState() {
-        return openAnimationState;
-    }
 
     @Override
     public int getAnimationTick() {
-        return animationTick;
+        return isOpen ? openTick : closeTick;
     }
 
     /**
@@ -89,11 +84,9 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
     public static void tick(Level level, BlockPos pos, BlockState state, AnimatedChestBlockEntity blockEntity) {
         if (level.isClientSide()) {
             if (blockEntity.isOpen) {
-                blockEntity.animationTick++;
+                blockEntity.openTick++;
             } else {
-                if (blockEntity.animationTick > 0) {
-                    blockEntity.animationTick--;
-                }
+                blockEntity.closeTick++;
             }
         }
     }
@@ -105,18 +98,12 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
                 boolean wasOpen = isOpen;
                 isOpen = chestTag.getBoolean(NBT_IS_OPEN).get();
 
-                // Update animation state on client
-                if (level != null && level.isClientSide() && wasOpen != isOpen) {
-                    if (isOpen) {
-                        openAnimationState.start((int) level.getGameTime());
-                    } else {
-                        openAnimationState.stop();
+                if (level != null && level.isClientSide()) {
+                    if (wasOpen != isOpen && isOpen) {
+                        openTick = 0;
+                        HytaleModelLoader.LOGGER.debug("CLIENT: Chest opened, reset animationTick to 0");
                     }
                 }
-            }
-
-            if (chestTag.contains(NBT_ANIM_TICK)) {
-                animationTick = chestTag.getInt(NBT_ANIM_TICK).get();
             }
         });
     }
@@ -125,7 +112,6 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
     protected void saveAnimationData(ValueOutput output) {
         CompoundTag chestTag = new CompoundTag();
         chestTag.putBoolean(NBT_IS_OPEN, isOpen);
-        chestTag.putInt(NBT_ANIM_TICK, animationTick);
         output.store(NBT_KEY, CompoundTag.CODEC, chestTag);
     }
 
@@ -142,8 +128,6 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
     public String toString() {
         return "AnimatedChestBlockEntity{" +
                 "pos=" + worldPosition +
-                ", isOpen=" + isOpen +
-                ", animationTick=" + animationTick +
-                "}";
+                ", isOpen=" + isOpen + "}";
     }
 }
