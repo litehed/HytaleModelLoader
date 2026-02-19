@@ -10,44 +10,45 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 
 import java.util.Map;
+import java.util.Optional;
 
-public class BlockyAnimationLoader implements ResourceManagerReloadListener {
+public final class BlockyAnimationLoader implements ResourceManagerReloadListener {
 
     public static final BlockyAnimationLoader INSTANCE = new BlockyAnimationLoader();
 
     private final Map<Identifier, BlockyAnimationDefinition> animationCache = Maps.newConcurrentMap();
 
+    public BlockyAnimationDefinition loadAnimation(Identifier animationId) {
+        return animationCache.computeIfAbsent(animationId, this::parseAnimation);
+    }
+
     public BlockyAnimationDefinition getAnimation(Identifier animationId) {
         return animationCache.get(animationId);
     }
 
-    public BlockyAnimationDefinition loadAnimation(Identifier animationId) {
-        return animationCache.computeIfAbsent(animationId, (id) -> {
-            try {
-                ResourceManager manager = Minecraft.getInstance().getResourceManager();
-                Resource resource = manager.getResource(id).orElse(null);
+    public void clearAnimation(Identifier animationId) {
+        animationCache.remove(animationId);
+    }
 
-                if (resource == null) {
-                    HytaleModelLoader.LOGGER.warn("Could not find animation file: {}", id);
-                    return null;
-                }
+    private BlockyAnimationDefinition parseAnimation(Identifier id) {
+        ResourceManager manager = Minecraft.getInstance().getResourceManager();
+        Optional<Resource> resource = manager.getResource(id);
 
-                try (BlockyTokenizer tokenizer = new BlockyTokenizer(resource.open())) {
-                    return BlockyAnimParser.parse(tokenizer.getRoot());
-                }
-            } catch (Exception e) {
-                HytaleModelLoader.LOGGER.error("Failed to load animation: {}", animationId, e);
-                return null;
-            }
-        });
+        if (resource.isEmpty()) {
+            HytaleModelLoader.LOGGER.warn("Animation resource not found: {}", id);
+            return null;
+        }
+
+        try (BlockyTokenizer tokenizer = new BlockyTokenizer(resource.get().open())) {
+            return BlockyAnimParser.parse(tokenizer.getRoot());
+        } catch (Exception e) {
+            HytaleModelLoader.LOGGER.error("Failed to parse animation '{}': {}", id, e.getMessage(), e);
+            return null;
+        }
     }
 
     @Override
     public void onResourceManagerReload(ResourceManager resourceManager) {
         animationCache.clear();
-    }
-
-    public void clearAnimation(Identifier animationId) {
-        animationCache.remove(animationId);
     }
 }

@@ -8,7 +8,7 @@ import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.resources.Identifier;
 
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Map;
 
 public class AnimatedChestRenderer extends HytaleBlockEntityRenderer<AnimatedChestBlockEntity, AnimatedChestRenderState> {
@@ -17,6 +17,14 @@ public class AnimatedChestRenderer extends HytaleBlockEntityRenderer<AnimatedChe
     private static final float MAX_LID_OFFSET = 3.0f;
 
     private static final float MAX_LID_ANGLE = 45;
+
+    private static final Identifier ANIM_OPEN =
+            Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID,
+                    "animations/chest_small/chest_open.blockyanim");
+
+    private static final Identifier ANIM_CLOSE =
+            Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID,
+                    "animations/chest_small/chest_close.blockyanim");
 
     public AnimatedChestRenderer(BlockEntityRendererProvider.Context context) {
         super(context);
@@ -32,13 +40,6 @@ public class AnimatedChestRenderer extends HytaleBlockEntityRenderer<AnimatedChe
                                                 AnimatedChestRenderState renderState,
                                                 float partialTick) {
         renderState.isOpen = blockEntity.isOpen();
-    }
-
-    private Identifier getAnimationFile(AnimatedChestRenderState renderState) {
-        if (renderState.isOpen) {
-            return Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "animations/chest_small/chest_open.blockyanim");
-        }
-        return Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "animations/chest_small/chest_close.blockyanim");
     }
 
     @Override
@@ -59,22 +60,14 @@ public class AnimatedChestRenderer extends HytaleBlockEntityRenderer<AnimatedChe
 //        return transforms;
 
         // For use of an animation file
-        Identifier animationFile = getAnimationFile(renderState);
-        try {
-            BlockyAnimationDefinition definition = BlockyAnimationLoader.INSTANCE.loadAnimation(animationFile);
+        Identifier animId = renderState.isOpen ? ANIM_OPEN : ANIM_CLOSE;
 
-            if (definition == null) {
-                HytaleModelLoader.LOGGER.warn("Animation definition is null for: {}", animationFile);
-                return new HashMap<>();
-            }
-            HytaleModelLoader.LOGGER.debug("Animation loaded - duration: {}, ageInTicks: {}",
-                    definition.getDuration(), renderState.ageInTicks);
-
-            BlockyAnimationPlayer player = new BlockyAnimationPlayer(definition);
-            return player.calculateTransforms(renderState.ageInTicks);
-        } catch (Exception e) {
-            HytaleModelLoader.LOGGER.error("Error playing animation: {}", e.getMessage());
-            return new HashMap<>();
+        BlockyAnimationDefinition definition = BlockyAnimationLoader.INSTANCE.loadAnimation(animId);
+        if (definition == null) {
+            HytaleModelLoader.LOGGER.warn("Animation definition not found: {}", animId);
+            return Collections.emptyMap();
         }
+
+        return new BlockyAnimationPlayer(definition).calculateTransforms(renderState.ageInTicks);
     }
 }

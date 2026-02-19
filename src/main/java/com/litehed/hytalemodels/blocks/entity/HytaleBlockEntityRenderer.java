@@ -105,6 +105,11 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
     private void renderNode(PoseStack poseStack, SubmitNodeCollector collector,
                             BlockyModelGeometry.BlockyNode node, TextureAtlasSprite sprite,
                             Map<String, NodeTransform> nodeTransforms, S renderState) {
+
+        NodeTransform transform = nodeTransforms.get(node.getId());
+        if (transform == null) transform = nodeTransforms.get(node.getName());
+        if (transform != null && !transform.visible()) return;
+
         poseStack.pushPose();
 
         applyNodeTransform(poseStack, node, nodeTransforms);

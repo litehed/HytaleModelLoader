@@ -78,7 +78,6 @@ public class BlockyKeyframe {
      */
     public enum InterpolationType {
         LINEAR,
-        SMOOTH,
-        CATMULLROM
+        SMOOTH
     }
 }

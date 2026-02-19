@@ -41,14 +41,12 @@ public class HytaleChest extends HytaleBlockBase implements EntityBlock {
 
     @Override
     public @Nullable <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> blockEntityType) {
-        if (level.isClientSide()) {
-            return (lvl, pos, blockState, blockEntity) -> {
-                if (blockEntity instanceof AnimatedChestBlockEntity chest) {
-                    AnimatedChestBlockEntity.tick(lvl, pos, blockState, chest);
-                }
-            };
-        }
-        return null;
+        if (!level.isClientSide()) return null;
+        return (lvl, pos, blockState, blockEntity) -> {
+            if (blockEntity instanceof AnimatedChestBlockEntity chest) {
+                AnimatedChestBlockEntity.clientTick(lvl, pos, blockState, chest);
+            }
+        };
     }
 
     @Override

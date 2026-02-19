@@ -1,6 +1,5 @@
 package com.litehed.hytalemodels.blocks.entity;
 
-import com.litehed.hytalemodels.HytaleModelLoader;
 import com.litehed.hytalemodels.init.BlockEntityInit;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -15,8 +14,8 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
     private static final String NBT_IS_OPEN = "IsOpen";
 
     private boolean isOpen = false;
-    private int openTick = 0;
-    private int closeTick = 0;
+    private int animationTick = 0;
+    private boolean lastKnownOpen = false;
 
     public AnimatedChestBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntityInit.CHEST_TEST_ENT.get(), pos, state, "chest_small");
@@ -27,14 +26,8 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
      */
     public void openChest() {
         if (!isOpen) {
+            animationTick = 0;
             isOpen = true;
-            openTick = 0;
-
-            if (level != null && level.isClientSide()) {
-                long gameTime = level.getGameTime();
-                HytaleModelLoader.LOGGER.debug("Client: Starting chest open animation at {}", gameTime);
-            }
-
             setChanged();
             syncToClients();
         }
@@ -45,22 +38,10 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
      */
     public void closeChest() {
         if (isOpen) {
+            animationTick = 0;
             isOpen = false;
-            closeTick = 0;
-            if (level != null && level.isClientSide()) {
-                HytaleModelLoader.LOGGER.debug("Client: Stopping chest open animation");
-            }
-
             setChanged();
             syncToClients();
-        }
-    }
-
-    public void toggleChest() {
-        if (isOpen) {
-            closeChest();
-        } else {
-            openChest();
         }
     }
 
@@ -75,36 +56,27 @@ public class AnimatedChestBlockEntity extends HytaleBlockEntity {
 
     @Override
     public int getAnimationTick() {
-        return isOpen ? openTick : closeTick;
+        return animationTick;
     }
 
     /**
      * Server/client tick for animation updates.
      */
-    public static void tick(Level level, BlockPos pos, BlockState state, AnimatedChestBlockEntity blockEntity) {
-        if (level.isClientSide()) {
-            if (blockEntity.isOpen) {
-                blockEntity.openTick++;
-            } else {
-                blockEntity.closeTick++;
-            }
-        }
+    public static void clientTick(Level level, BlockPos pos, BlockState state,
+                                  AnimatedChestBlockEntity be) {
+        be.animationTick++;
     }
 
     @Override
     protected void loadAnimationData(ValueInput input) {
-        input.read(NBT_KEY, CompoundTag.CODEC).ifPresent(chestTag -> {
-            if (chestTag.contains(NBT_IS_OPEN)) {
-                boolean wasOpen = isOpen;
-                isOpen = chestTag.getBoolean(NBT_IS_OPEN).get();
-
-                if (level != null && level.isClientSide()) {
-                    if (wasOpen != isOpen && isOpen) {
-                        openTick = 0;
-                        HytaleModelLoader.LOGGER.debug("CLIENT: Chest opened, reset animationTick to 0");
-                    }
-                }
+        input.read(NBT_KEY, CompoundTag.CODEC).ifPresent(tag -> {
+            boolean newOpen = tag.getBoolean(NBT_IS_OPEN).orElse(false);
+            // If the state changed (server pushed an update), reset the animation tick
+            if (newOpen != lastKnownOpen) {
+                animationTick = 0;
+                lastKnownOpen = newOpen;
             }
+            isOpen = newOpen;
         });
     }
 
