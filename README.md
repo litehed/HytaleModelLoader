@@ -41,15 +41,14 @@ Models are defined using `.blockymodel` files (custom binary/text format) and re
 ### v1.1.0
 - [x] Check item and block scaling/translating using model json
 - [x] Implement custom BlockEntities for animation support since baked models cannot
-- [ ] Add parser for animation support `.blockyanim`
-- [ ] Load animations in for blocks
-- [ ] Create animation system to actually play and time these animations
-- [ ] Add wiki to show how to use different parts of the mod
+- [x] Add parser for animation support `.blockyanim`
+- [x] Load animations in for blocks
+- [x] Create animation system to actually play and time these animations
+- [x] Add wiki to show how to use different parts of the mod
 - [ ] Fix and clean up code
 
 ### v2.0.0
 - [ ] Implement entity model loading
-- [ ] Create in-game model preview/editing tool
 - [ ] Support for custom render layers and transparency blending
 - [ ] Clean code and docs for v2 release
 
