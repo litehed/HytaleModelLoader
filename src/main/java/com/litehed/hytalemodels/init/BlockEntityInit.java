@@ -2,6 +2,7 @@ package com.litehed.hytalemodels.init;
 
 import com.litehed.hytalemodels.HytaleModelLoader;
 import com.litehed.hytalemodels.blocks.entity.AnimatedChestBlockEntity;
+import com.litehed.hytalemodels.blocks.entity.CoffinBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -18,6 +19,14 @@ public class BlockEntityInit {
                     AnimatedChestBlockEntity::new,
                     false,
                     BlockInit.SMALL_CHEST.get()
+            )
+    );
+
+    public static final Supplier<BlockEntityType<CoffinBlockEntity>> COFFIN_ENT = BLOCK_ENTITIES.register(
+            "coffin", () -> new BlockEntityType<>(
+                    CoffinBlockEntity::new,
+                    false,
+                    BlockInit.COFFIN.get()
             )
     );
 }

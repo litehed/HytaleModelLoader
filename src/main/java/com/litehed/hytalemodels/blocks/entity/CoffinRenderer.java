@@ -11,22 +11,17 @@ import net.minecraft.resources.Identifier;
 import java.util.HashMap;
 import java.util.Map;
 
-public class AnimatedChestRenderer extends HytaleBlockEntityRenderer<AnimatedChestBlockEntity, AnimatedChestRenderState> {
-
-    private static final float ANIMATION_SPEED = 0.01f;
-    private static final float MAX_LID_OFFSET = 3.0f;
-
-    private static final float MAX_LID_ANGLE = 45;
+public class CoffinRenderer extends HytaleBlockEntityRenderer<CoffinBlockEntity, AnimatedChestRenderState> {
 
     private static final Identifier ANIM_OPEN =
             Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID,
-                    "animations/chest_small/chest_open.blockyanim");
+                    "animations/coffin/coffin_open.blockyanim");
 
     private static final Identifier ANIM_CLOSE =
             Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID,
-                    "animations/chest_small/chest_close.blockyanim");
+                    "animations/coffin/coffin_close.blockyanim");
 
-    public AnimatedChestRenderer(BlockEntityRendererProvider.Context context) {
+    public CoffinRenderer(BlockEntityRendererProvider.Context context) {
         super(context);
     }
 
@@ -36,7 +31,7 @@ public class AnimatedChestRenderer extends HytaleBlockEntityRenderer<AnimatedChe
     }
 
     @Override
-    protected void extractAdditionalRenderState(AnimatedChestBlockEntity blockEntity,
+    protected void extractAdditionalRenderState(CoffinBlockEntity blockEntity,
                                                 AnimatedChestRenderState renderState,
                                                 float partialTick) {
         renderState.isOpen = blockEntity.isOpen();
@@ -52,11 +47,6 @@ public class AnimatedChestRenderer extends HytaleBlockEntityRenderer<AnimatedChe
         if (definition != null) {
             transforms.putAll(new BlockyAnimationPlayer(definition).calculateTransforms(renderState.ageInTicks));
         }
-
-        // Procedural System
-//        float angle = (float) Math.sin(renderState.ageInTicks * ANIMATION_SPEED) * MAX_LID_ANGLE;
-//        Quaternionf rotation = new Quaternionf().rotateX((float) Math.toRadians(-Math.abs(angle)));
-//        transforms.put("Lid", NodeTransform.rotation(rotation));
 
         return transforms;
     }

@@ -1,6 +1,7 @@
 package com.litehed.hytalemodels;
 
 import com.litehed.hytalemodels.blocks.entity.AnimatedChestRenderer;
+import com.litehed.hytalemodels.blocks.entity.CoffinRenderer;
 import com.litehed.hytalemodels.blockymodel.BlockyModelLoader;
 import com.litehed.hytalemodels.init.BlockEntityInit;
 import net.neoforged.api.distmarker.Dist;
@@ -39,5 +40,6 @@ public class HytaleModelLoaderClient {
     @SubscribeEvent
     public static void registerEntityRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(BlockEntityInit.CHEST_TEST_ENT.get(), AnimatedChestRenderer::new);
+        event.registerBlockEntityRenderer(BlockEntityInit.COFFIN_ENT.get(), CoffinRenderer::new);
     }
 }
