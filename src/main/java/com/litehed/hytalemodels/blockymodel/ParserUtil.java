@@ -2,6 +2,7 @@ package com.litehed.hytalemodels.blockymodel;
 
 import com.google.gson.JsonObject;
 
+// Utility class for parsing JSON objects with default values
 public class ParserUtil {
     public static float getFloatOrDefault(JsonObject obj, String key, float defaultValue) {
         return obj.has(key) ? obj.get(key).getAsFloat() : defaultValue;

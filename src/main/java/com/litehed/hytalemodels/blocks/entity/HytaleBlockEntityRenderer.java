@@ -52,6 +52,12 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
     }
 
 
+    /**
+     * Allows subclasses to extract additional data from the block entity and put it into the render state
+     * @param blockEntity the block entity being rendered
+     * @param renderState the render state being built for this block entity
+     * @param partialTick the current partial tick
+     */
     protected void extractAdditionalRenderState(T blockEntity, S renderState, float partialTick) {
     }
 
@@ -90,18 +96,43 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
     }
 
 
+    /**
+     * Calculates the transforms for all nodes in the model
+     * @param renderState the current render state containing animation tick and other relevant data
+     * @param geometry the geometry of the model being rendered
+     * @return a map of node IDs/names to their corresponding transforms for the current frame
+     */
     protected abstract Map<String, NodeTransform> calculateAnimationTransforms(S renderState, BlockyModelGeometry geometry);
 
 
+    /**
+     * Gets the model location for a given model name
+     * @param modelName the name of the model
+     * @return the identifier pointing to the model file for this model name
+     */
     protected Identifier getModelLocation(String modelName) {
         return Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "models/" + modelName + ".blockymodel");
     }
 
+    /**
+     * Gets the texture material for a given model name
+     * @param modelName the name of the model
+     * @return the material pointing to the texture for this model name
+     */
     protected Material getTextureMaterial(String modelName) {
         return new Material(TextureAtlas.LOCATION_BLOCKS,
                 Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "block/" + modelName + "_texture"));
     }
 
+    /**
+     * Renders a single node of the model, including applying any relevant transforms and rendering the quads for its shape
+     * @param poseStack the current pose stack for rendering
+     * @param collector the submit node collector to submit geometry to
+     * @param node the node being rendered
+     * @param sprite the texture sprite to use for rendering this node
+     * @param nodeTransforms the map of node transforms calculated for the current frame for animations
+     * @param renderState the current render state
+     */
     private void renderNode(PoseStack poseStack, SubmitNodeCollector collector,
                             BlockyModelGeometry.BlockyNode node, TextureAtlasSprite sprite,
                             Map<String, NodeTransform> nodeTransforms, S renderState) {
@@ -149,6 +180,12 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         return RenderTypes.cutoutMovingBlock();
     }
 
+    /**
+     * Applies the necessary transformations to the pose stack for rendering a given node
+     * @param poseStack the current pose stack for rendering
+     * @param node the node being rendered
+     * @param effectiveTransforms the map of effective transforms for all nodes
+     */
     private void applyNodeTransform(PoseStack poseStack, BlockyModelGeometry.BlockyNode node,
                                     Map<String, NodeTransform> effectiveTransforms) {
         Vector3f worldPos = TransformCalculator.calculateWorldPosition(node);
@@ -221,6 +258,12 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         }
     }
 
+    /**
+     * Recursively checks parent nodes for animation transforms to apply to the current node (Child nodes inherit animations)
+     * @param node the node being rendered
+     * @param effectiveTransforms the map of effective transforms for all nodes
+     * @return the first parent animation transform found, else null
+     */
     private NodeTransform getParentAnimationTransform(BlockyModelGeometry.BlockyNode node,
                                                       Map<String, NodeTransform> effectiveTransforms) {
         BlockyModelGeometry.BlockyNode current = node.getParent();
@@ -239,7 +282,19 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         return null;
     }
 
-
+    /**
+     * Renders a single quad for a given face of the shape, applying the appropriate texture coordinates and normal based on the face direction
+     * @param buffer the vertex consumer buffer to submit vertices to
+     * @param pose the current pose for rendering, containing the transformation matrix and normal matrix
+     * @param direction the face direction this quad is being rendered for
+     * @param min the minimum corner of the quad in model space
+     * @param max the maximum corner of the quad in model space
+     * @param sprite the texture sprite to use for calculating UV coordinates
+     * @param texLayout the texture layout information for this face, containing UV offsets and sizes
+     * @param originalSize the original size of the shape, used for calculating UV coordinates when set to stretch
+     * @param renderState the current render state
+     * @param reversed  whether to reverse the vertex order for this quad
+     */
     private void renderQuad(VertexConsumer buffer, PoseStack.Pose pose, Direction direction,
                             Vector3f min, Vector3f max, TextureAtlasSprite sprite,
                             BlockyModelGeometry.FaceTextureLayout texLayout, Vector3f originalSize,
@@ -271,6 +326,15 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         }
     }
 
+    /**
+     * Adds a single vertex to the buffer with the given position, normal, UV coordinates, and light information
+     * @param buffer the vertex consumer buffer to submit the vertex to
+     * @param pose the current pose transformation matrix to apply to the vertex position
+     * @param normal the normal vector for this vertex, used for lighting calculations
+     * @param vertex the position of the vertex in model space
+     * @param uv the UV coordinates for this vertex, calculated based on the texture layout and sprite
+     * @param lightCoords the combined block and sky light coordinates for this vertex, used for lighting calculations
+     */
     private void addVertex(VertexConsumer buffer, Matrix4f pose, Vector3f normal,
                            Vector3f vertex, float[] uv, int lightCoords) {
         int blockLight = lightCoords & 0xFFFF;
@@ -283,10 +347,22 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
                 .setNormal(normal.x, normal.y, normal.z);
     }
 
+    /**
+     * Finds a node in the model geometry by its name, searching recursively through all nodes and their children
+     * @param geometry the model geometry to search through
+     * @param name the name of the node to find
+     * @return the node with the given name, else null
+     */
     protected BlockyModelGeometry.BlockyNode findNodeByName(BlockyModelGeometry geometry, String name) {
         return findNodeByNameRecursive(geometry.getNodes(), name);
     }
 
+    /**
+     * Helper method to recursively search for a node by name through a list of nodes and their children
+     * @param nodes the list of nodes to search through
+     * @param name the name of the node to find
+     * @return the node with the given name, else null
+     */
     private BlockyModelGeometry.BlockyNode findNodeByNameRecursive(
             List<BlockyModelGeometry.BlockyNode> nodes, String name) {
         for (BlockyModelGeometry.BlockyNode node : nodes) {
@@ -297,6 +373,12 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         return null;
     }
 
+    /**
+     * Recursively applies a given rotation transform to a node and all of its descendants, storing the results in the provided transforms map
+     * @param node the node to apply the transform to, along with all of its children
+     * @param rotation the rotation to apply to this node and its descendants
+     * @param transforms the map to store the resulting transforms for each node, keyed by node ID or name
+     */
     protected void applyTransformToDescendants(BlockyModelGeometry.BlockyNode node,
                                                Quaternionf rotation,
                                                Map<String, NodeTransform> transforms) {
@@ -306,6 +388,11 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         }
     }
 
+    /**
+     * Gets the geometry for a given model location, either from the cache or by loading it from the model file if not already cached
+     * @param modelLocation the identifier pointing to the model file for this model
+     * @return the geometry for this model, else null
+     */
     private BlockyModelGeometry getOrLoadGeometry(Identifier modelLocation) {
         String key = modelLocation.toString();
 

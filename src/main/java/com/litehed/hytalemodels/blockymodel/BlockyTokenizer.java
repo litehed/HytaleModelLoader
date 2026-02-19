@@ -8,6 +8,7 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 
+// Tokenizer for reading BlockyModel JSON files. It reads the entire file into memory and parses it as a JsonObject.
 public class BlockyTokenizer implements AutoCloseable {
     private final BufferedReader lineReader;
     private final JsonObject root;

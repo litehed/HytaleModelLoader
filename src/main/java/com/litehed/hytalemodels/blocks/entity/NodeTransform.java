@@ -49,6 +49,12 @@ public record NodeTransform(Vector3f position, Quaternionf rotation, Vector3f sc
         return new Vector3f(scale);
     }
 
+    /** 
+     * Merges this NodeTransform with another NodeTransform
+     * 
+     * @param other The other NodeTransform to merge with
+     * @return The combined node transform
+     */
     public NodeTransform merge(NodeTransform other) {
         Vector3f mergedPos = new Vector3f(this.position).add(other.position);
         Quaternionf mergedRot = new Quaternionf(this.rotation).mul(other.rotation);
@@ -57,6 +63,10 @@ public record NodeTransform(Vector3f position, Quaternionf rotation, Vector3f sc
         return new NodeTransform(mergedPos, mergedRot, mergedScale, mergedVis);
     }
 
+    /**
+     * Checks if this NodeTransform is the identity transform
+     * @return true if this NodeTransform is the identity transform, false otherwise
+     */
     public boolean isIdentity() {
         return position.lengthSquared() < EPSILON &&
                 rotation.equals(new Quaternionf(), EPSILON) &&
