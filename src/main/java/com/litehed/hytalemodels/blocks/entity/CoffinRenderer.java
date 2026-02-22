@@ -2,9 +2,6 @@ package com.litehed.hytalemodels.blocks.entity;
 
 import com.litehed.hytalemodels.HytaleModelLoader;
 import com.litehed.hytalemodels.blockymodel.BlockyModelGeometry;
-import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationDefinition;
-import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationLoader;
-import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.resources.Identifier;
 
@@ -43,11 +40,9 @@ public class CoffinRenderer extends HytaleBlockEntityRenderer<CoffinBlockEntity,
         Map<String, NodeTransform> transforms = new HashMap<>();
 
         Identifier animId = renderState.isOpen ? ANIM_OPEN : ANIM_CLOSE;
-        BlockyAnimationDefinition definition = BlockyAnimationLoader.INSTANCE.loadAnimation(animId);
-        if (definition != null) {
-            transforms.putAll(new BlockyAnimationPlayer(definition).calculateTransforms(renderState.ageInTicks));
-        }
 
+        getOrCreatePlayer(animId).calculateTransforms(renderState.ageInTicks).putAll(transforms);
+        
         return transforms;
     }
 }

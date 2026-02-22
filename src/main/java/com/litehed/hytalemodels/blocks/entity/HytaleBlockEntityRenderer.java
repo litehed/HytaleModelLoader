@@ -6,6 +6,9 @@ import com.litehed.hytalemodels.blockymodel.BlockyModelGeometry;
 import com.litehed.hytalemodels.blockymodel.BlockyModelLoader;
 import com.litehed.hytalemodels.blockymodel.QuadBuilder;
 import com.litehed.hytalemodels.blockymodel.TransformCalculator;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationDefinition;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationLoader;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
@@ -36,6 +39,7 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         implements BlockEntityRenderer<T, S> {
 
     private final Map<String, BlockyModelGeometry> geometryCache = new HashMap<>();
+    private final Map<Identifier, BlockyAnimationPlayer> playerCache = new HashMap<>();
 
     public HytaleBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -453,4 +457,19 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
             return null;
         }
     }
+
+    /**
+     * Returns a cached BlockyAnimationPlayer for the given animation ID, creating and caching one
+     * on first access. Returns null if the animation definition cannot be loaded.
+     *
+     * @param animId the identifier pointing to the animation file
+     * @return the cached player for this animation, else null
+     */
+    protected BlockyAnimationPlayer getOrCreatePlayer(Identifier animId) {
+        return playerCache.computeIfAbsent(animId, id -> {
+            BlockyAnimationDefinition definition = BlockyAnimationLoader.INSTANCE.loadAnimation(id);
+            return definition != null ? new BlockyAnimationPlayer(definition) : null;
+        });
+    }
+
 }
