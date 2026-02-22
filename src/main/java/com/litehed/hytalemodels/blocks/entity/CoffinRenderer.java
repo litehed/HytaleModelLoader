@@ -2,6 +2,7 @@ package com.litehed.hytalemodels.blocks.entity;
 
 import com.litehed.hytalemodels.HytaleModelLoader;
 import com.litehed.hytalemodels.blockymodel.BlockyModelGeometry;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.resources.Identifier;
 
@@ -41,8 +42,11 @@ public class CoffinRenderer extends HytaleBlockEntityRenderer<CoffinBlockEntity,
 
         Identifier animId = renderState.isOpen ? ANIM_OPEN : ANIM_CLOSE;
 
-        getOrCreatePlayer(animId).calculateTransforms(renderState.ageInTicks).putAll(transforms);
-        
+        BlockyAnimationPlayer player = getOrCreatePlayer(animId);
+        if (player != null) {
+            transforms.putAll(player.calculateTransforms(renderState.ageInTicks));
+        }
+
         return transforms;
     }
 }
