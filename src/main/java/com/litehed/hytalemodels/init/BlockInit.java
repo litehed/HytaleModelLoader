@@ -21,4 +21,7 @@ public class BlockInit {
     public static final DeferredBlock<Block> SMALL_CHEST = BLOCKS.registerBlock("chest_small", HytaleChest::new);
     public static final DeferredBlock<Block> CHAIR = BLOCKS.registerSimpleBlock("chair", () -> BlockBehaviour.Properties.of().noOcclusion());
     public static final DeferredBlock<Block> TABLE = BLOCKS.registerSimpleBlock("table", () -> BlockBehaviour.Properties.of().noOcclusion());
+    public static final DeferredBlock<Block> ASH_LEAVES = BLOCKS.registerBlock("ash_leaves", HytaleBlockBase::new);
+    public static final DeferredBlock<Block> SLOPE_HOLLOW = BLOCKS.registerBlock("slope_hay_hollow", HytaleBlockBase::new);
+
 }

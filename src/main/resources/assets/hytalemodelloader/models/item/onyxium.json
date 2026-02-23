@@ -1,0 +1,9 @@
+{
+  "parent": "neoforge:item/default",
+  "loader": "hytalemodelloader:blockymodel_loader",
+  "model": "hytalemodelloader:models/onyxium.blockymodel",
+  "textures": {
+    "texture": "hytalemodelloader:item/onyxium_texture",
+    "particle": "hytalemodelloader:item/onyxium_texture"
+  }
+}

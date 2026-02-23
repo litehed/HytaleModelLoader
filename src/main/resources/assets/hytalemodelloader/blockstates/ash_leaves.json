@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "hytalemodelloader:block/ash_leaves",
+      "y": 180
+    },
+    "facing=east": {
+      "model": "hytalemodelloader:block/ash_leaves",
+      "y": 270
+    },
+    "facing=south": {
+      "model": "hytalemodelloader:block/ash_leaves"
+    },
+    "facing=west": {
+      "model": "hytalemodelloader:block/ash_leaves",
+      "y": 90
+    }
+  }
+}

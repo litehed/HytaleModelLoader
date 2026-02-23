@@ -231,7 +231,7 @@ public class BlockyModelParser {
         return new Vector3f(
                 getFloatOrDefault(size, "x", DEFAULT_SIZE),
                 getFloatOrDefault(size, "y", DEFAULT_SIZE),
-                getFloatOrDefault(size, "z", DEFAULT_SIZE)
+                getFloatOrDefault(size, "z", 0)
         );
     }
 
