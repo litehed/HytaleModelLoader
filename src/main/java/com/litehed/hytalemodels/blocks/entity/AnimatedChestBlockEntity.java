@@ -1,5 +1,6 @@
 package com.litehed.hytalemodels.blocks.entity;
 
+import com.litehed.hytalemodels.api.block.entity.HytaleBlockEntity;
 import com.litehed.hytalemodels.init.BlockEntityInit;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;

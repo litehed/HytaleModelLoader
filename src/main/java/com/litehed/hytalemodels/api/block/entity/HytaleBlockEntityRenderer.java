@@ -1,7 +1,8 @@
-package com.litehed.hytalemodels.blocks.entity;
+package com.litehed.hytalemodels.api.block.entity;
 
 import com.litehed.hytalemodels.HytaleModelLoader;
-import com.litehed.hytalemodels.blocks.HytaleBlockBase;
+import com.litehed.hytalemodels.api.NodeTransform;
+import com.litehed.hytalemodels.api.block.HytaleBlockBase;
 import com.litehed.hytalemodels.blockymodel.BlockyModelGeometry;
 import com.litehed.hytalemodels.blockymodel.BlockyModelLoader;
 import com.litehed.hytalemodels.blockymodel.QuadBuilder;
@@ -115,10 +116,20 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
     }
 
     /**
-     * Gets the rotation degree based on direction blockstate
+     * Returns the Y-axis rotation in degrees that should be applied to the model based on the
+     * block's facing direction.
      *
-     * @param facing The Direction the block is being placed in
-     * @return Degrees to rotate block along the Y
+     * <p>Override to customize facing rotation behaviour. Default mapping:
+     * <ul>
+     *   <li>NORTH -> 180</li>
+     *   <li>EAST  -> 90</li>
+     *   <li>WEST  -> 270</li>
+     *   <li>SOUTH -> 0</li>
+     * </ul>
+     *
+     * @param facing the direction the block is facing; may be {@code null} if the block has no
+     *               facing property, in which case 0° is returned
+     * @return the rotation in degrees around the Y axis
      */
     protected float getFacingYRotation(Direction facing) {
         return switch (facing) {

@@ -1,7 +1,7 @@
 package com.litehed.hytalemodels.init;
 
 import com.litehed.hytalemodels.HytaleModelLoader;
-import com.litehed.hytalemodels.blocks.HytaleBlockBase;
+import com.litehed.hytalemodels.api.block.HytaleBlockBase;
 import com.litehed.hytalemodels.blocks.HytaleChest;
 import com.litehed.hytalemodels.blocks.HytaleCoffin;
 import net.minecraft.world.level.block.Block;

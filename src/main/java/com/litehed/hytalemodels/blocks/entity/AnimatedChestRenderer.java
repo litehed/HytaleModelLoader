@@ -1,6 +1,8 @@
 package com.litehed.hytalemodels.blocks.entity;
 
 import com.litehed.hytalemodels.HytaleModelLoader;
+import com.litehed.hytalemodels.api.block.entity.HytaleBlockEntityRenderer;
+import com.litehed.hytalemodels.api.NodeTransform;
 import com.litehed.hytalemodels.blockymodel.BlockyModelGeometry;
 import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;

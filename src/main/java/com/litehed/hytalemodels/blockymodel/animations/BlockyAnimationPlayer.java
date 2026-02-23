@@ -1,6 +1,6 @@
 package com.litehed.hytalemodels.blockymodel.animations;
 
-import com.litehed.hytalemodels.blocks.entity.NodeTransform;
+import com.litehed.hytalemodels.api.NodeTransform;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 

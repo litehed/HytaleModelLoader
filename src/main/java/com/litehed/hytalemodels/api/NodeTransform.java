@@ -1,4 +1,4 @@
-package com.litehed.hytalemodels.blocks.entity;
+package com.litehed.hytalemodels.api;
 
 import org.joml.Quaternionf;
 import org.joml.Vector3f;

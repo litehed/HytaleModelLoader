@@ -1,5 +1,6 @@
 package com.litehed.hytalemodels.blocks;
 
+import com.litehed.hytalemodels.api.block.HytaleBlockBase;
 import com.litehed.hytalemodels.blocks.entity.AnimatedChestBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionResult;
