@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "hytalemodelloader:block/slope_hay_hollow",
+      "y": 180
+    },
+    "facing=east": {
+      "model": "hytalemodelloader:block/slope_hay_hollow",
+      "y": 270
+    },
+    "facing=south": {
+      "model": "hytalemodelloader:block/slope_hay_hollow"
+    },
+    "facing=west": {
+      "model": "hytalemodelloader:block/slope_hay_hollow",
+      "y": 90
+    }
+  }
+}

@@ -27,7 +27,7 @@ displayName = "${mod_name}" #mandatory
 #updateJSONURL="https://change.me.example.invalid/updates.json" #optional
 
 # A URL for the "homepage" for this mod, displayed in the mod UI
-#displayURL="https://change.me.to.your.mods.homepage.example.invalid/" #optional
+displayURL="https://github.com/litehed/HytaleModelLoader/wiki" #optional
 
 # A file name (in the root of the mod JAR) containing a logo for display
 #logoFile="examplemod.png" #optional
@@ -40,7 +40,8 @@ authors = "litehed"
 
 # The description text for the mod (multi line!) (#mandatory)
 description = '''
-Hytale Model Loader enables importing .blockymodel models from Hytale into Minecraft. Simply reference this loader in your model file and point to the blockymodel location to utilize this mod. Animation and entity support will come in the future.
+Hytale Model Loader enables importing .blockymodel models and their respective .blockyanim animations from Hytale into Minecraft. Simply reference this loader in your model file and point to the blockymodel location to utilize this mod. Entity support will come in the future.
+For more advanced usages check the wiki.
 '''
 
 # The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.

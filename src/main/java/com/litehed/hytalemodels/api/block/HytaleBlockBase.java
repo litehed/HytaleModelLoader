@@ -1,4 +1,4 @@
-package com.litehed.hytalemodels.blocks;
+package com.litehed.hytalemodels.api.block;
 
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -10,12 +10,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 
-public class HytaleTestBlock extends Block {
+public class HytaleBlockBase extends Block {
 
     public static final EnumProperty<Direction> FACING = HorizontalDirectionalBlock.FACING;
 
 
-    public HytaleTestBlock(Properties properties) {
+    public HytaleBlockBase(Properties properties) {
         super(properties.noOcclusion());
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
     }
@@ -31,10 +31,12 @@ public class HytaleTestBlock extends Block {
         return super.getStateForPlacement(context).setValue(FACING, context.getHorizontalDirection().getOpposite());
     }
 
+    @Override
     public BlockState rotate(BlockState state, Rotation rot) {
         return state.setValue(FACING, rot.rotate(state.getValue(FACING)));
     }
 
+    @Override
     public BlockState mirror(BlockState state, Mirror mirrorIn) {
         return state.rotate(mirrorIn.getRotation(state.getValue(FACING)));
     }
