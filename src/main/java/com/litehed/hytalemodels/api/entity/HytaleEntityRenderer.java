@@ -41,12 +41,6 @@ import java.util.Optional;
 public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntityRenderState>
         extends MobRenderer<T, S, BlockyPlaceholderModel<S>> {
 
-    /**
-     * Blocky animation time units that pass per game tick, matching the block entity renderers.
-     * Multiply ageInTicks by this when playing a keyframe animation.
-     */
-    public static final float ANIMATION_UNITS_PER_TICK = 4.0f;
-
     // Renderers are recreated on resource reload, so these caches never outlive their textures
     private final Map<Identifier, Optional<Prepared>> preparedCache = new HashMap<>();
     private final Map<Identifier, Optional<BlockyAnimationPlayer>> animationCache = new HashMap<>();
@@ -72,6 +66,14 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
      */
     protected float getModelScale() {
         return 1.0f;
+    }
+
+    /**
+     * Blocky animation time units that pass per game tick, matching the block entity renderers.
+     * Multiply ageInTicks by this when playing a keyframe animation.
+     */
+    protected float getAnimationUnitsPerTick() {
+        return 4.0f;
     }
 
     /**

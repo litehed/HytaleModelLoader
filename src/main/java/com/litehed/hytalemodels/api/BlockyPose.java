@@ -112,6 +112,21 @@ public final class BlockyPose {
     }
 
     /**
+     * Plays a keyframe animation that replaces whatever is already set for the nodes it animates, instead of
+     * adding to it
+     *
+     * @param player the animation, or null to do nothing
+     * @param time   time in animation units
+     * @return this pose
+     */
+    public BlockyPose playOverride(@Nullable BlockyAnimationPlayer player, float time) {
+        if (player != null) {
+            transforms.putAll(player.calculateTransforms(time));
+        }
+        return this;
+    }
+
+    /**
      * Looks up the combined transform for a node. Used by the renderer.
      *
      * @param id   the node's id

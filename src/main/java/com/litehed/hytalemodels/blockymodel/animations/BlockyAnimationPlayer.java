@@ -324,7 +324,7 @@ public class BlockyAnimationPlayer {
     }
 
     /**
-     * Finds the keyframe segment containing the given time. For a cyclic (looping) animation, times after the last
+     * Finds the keyframe segment containing the given time. For a looping animation, times after the last
      * keyframe interpolate towards the first keyframe one loop later, and times before the first keyframe interpolate
      * from the last keyframe one loop earlier. Otherwise, the first and last keyframes are simply held.
      *
