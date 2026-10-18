@@ -165,7 +165,6 @@ public class QuadBuilder {
         return strip;
     }
 
-
     /**
      * Calculate UV coordinates for a face
      *
@@ -176,10 +175,24 @@ public class QuadBuilder {
      * @return an array of UV coordinates for each vertex of the face
      */
     public static float[][] calculateUVCoordinates(Direction face, BlockyModelGeometry.FaceTextureLayout layout,
-                                                    Vector3f size, TextureAtlasSprite sprite) {
+                                                   Vector3f size, TextureAtlasSprite sprite) {
+        return calculateUVCoordinates(face, layout, size, UVRegion.of(sprite));
+    }
+
+    /**
+     * Calculate UV coordinates for a face against any texture region (an atlas sprite or a whole standalone texture)
+     *
+     * @param face   the Direction of the face
+     * @param layout the texture layout for the face
+     * @param size   the size of the face
+     * @param region the texture region to map pixel coordinates into
+     * @return an array of UV coordinates for each vertex of the face
+     */
+    public static float[][] calculateUVCoordinates(Direction face, BlockyModelGeometry.FaceTextureLayout layout,
+                                                   Vector3f size, UVRegion region) {
         UVSize uvSize = getUVSizeForFace(face, size);
-        UVBounds bounds = calculateUVBounds(layout, uvSize, sprite);
-        return transformUVCoordinates(bounds, layout, uvSize, sprite);
+        UVBounds bounds = calculateUVBounds(layout, uvSize, region);
+        return transformUVCoordinates(bounds, layout, uvSize, region);
     }
 
     /**
@@ -202,13 +215,13 @@ public class QuadBuilder {
      *
      * @param layout the texture layout for the face
      * @param uvSize the UV size for the face
-     * @param sprite the TextureAtlasSprite to use for UV calculation
+     * @param region the texture region to use for UV calculation
      * @return the UV bounds for the given layout and sprite
      */
     private static UVBounds calculateUVBounds(BlockyModelGeometry.FaceTextureLayout layout, UVSize uvSize,
-                                              TextureAtlasSprite sprite) {
-        int textureWidth = sprite.contents().width();
-        int textureHeight = sprite.contents().height();
+                                              UVRegion region) {
+        int textureWidth = region.width();
+        int textureHeight = region.height();
 
         float uMin = layout.offsetX() / (float) textureWidth;
         float vMin = layout.offsetY() / (float) textureHeight;
@@ -227,10 +240,10 @@ public class QuadBuilder {
         }
 
         // Map to sprite atlas
-        uMin = sprite.getU0() + (sprite.getU1() - sprite.getU0()) * uMin;
-        vMin = sprite.getV0() + (sprite.getV1() - sprite.getV0()) * vMin;
-        uMax = sprite.getU0() + (sprite.getU1() - sprite.getU0()) * uMax;
-        vMax = sprite.getV0() + (sprite.getV1() - sprite.getV0()) * vMax;
+        uMin = region.u0() + (region.u1() - region.u0()) * uMin;
+        vMin = region.v0() + (region.v1() - region.v0()) * vMin;
+        uMax = region.u0() + (region.u1() - region.u0()) * uMax;
+        vMax = region.v0() + (region.v1() - region.v0()) * vMax;
         return new UVBounds(uMin, vMin, uMax, vMax);
     }
 
@@ -240,17 +253,17 @@ public class QuadBuilder {
      * @param bounds the UV bounds
      * @param layout the texture layout containing rotation and mirror flags
      * @param uvSize the size of the UV region
-     * @param sprite the TextureAtlasSprite for coordinate conversion
+     * @param region the texture region for coordinate conversion
      * @return transformed UV coordinates for all 4 vertices
      */
     private static float[][] transformUVCoordinates(
             UVBounds bounds,
             BlockyModelGeometry.FaceTextureLayout layout,
             UVSize uvSize,
-            TextureAtlasSprite sprite) {
+            UVRegion region) {
 
-        int textureWidth = sprite.contents().width();
-        int textureHeight = sprite.contents().height();
+        int textureWidth = region.width();
+        int textureHeight = region.height();
         int angle = layout.angle();
         boolean mirrorX = layout.mirrorX();
         boolean mirrorY = layout.mirrorY();
@@ -265,10 +278,10 @@ public class QuadBuilder {
             float vSize = mirrorY ? -uvSize.v : uvSize.v;
 
             float[][] cornersPx = new float[4][2];
-            cornersPx[0] = new float[]{pivotUPx, pivotVPx};              // Top-left (pivot)
-            cornersPx[1] = new float[]{pivotUPx + uSize, pivotVPx};      // Top-right
+            cornersPx[0] = new float[]{pivotUPx, pivotVPx};                 // Top-left (pivot)
+            cornersPx[1] = new float[]{pivotUPx + uSize, pivotVPx};         // Top-right
             cornersPx[2] = new float[]{pivotUPx + uSize, pivotVPx + vSize}; // Bottom-right
-            cornersPx[3] = new float[]{pivotUPx, pivotVPx + vSize};      // Bottom-left
+            cornersPx[3] = new float[]{pivotUPx, pivotVPx + vSize};         // Bottom-left
 
             for (int i = 0; i < 4; i++) {
                 float[] rotated = rotatePointClockwise(
@@ -277,8 +290,8 @@ public class QuadBuilder {
                         angle
                 );
 
-                uvs[i][0] = normalizeU(rotated[0], sprite, textureWidth);
-                uvs[i][1] = normalizeV(rotated[1], sprite, textureHeight);
+                uvs[i][0] = normalizeU(rotated[0], region, textureWidth);
+                uvs[i][1] = normalizeV(rotated[1], region, textureHeight);
             }
         } else {
             uvs[0] = new float[]{bounds.uMin, bounds.vMax};
@@ -349,14 +362,14 @@ public class QuadBuilder {
 
 
     // Helper funcs to get u and v normalized to proper coords
-    private static float normalizeU(float pixelU, TextureAtlasSprite sprite, int textureWidth) {
+    private static float normalizeU(float pixelU, UVRegion region, int textureWidth) {
         float relativeU = pixelU / textureWidth;
-        return sprite.getU0() + (sprite.getU1() - sprite.getU0()) * relativeU;
+        return region.u0() + (region.u1() - region.u0()) * relativeU;
     }
 
-    private static float normalizeV(float pixelV, TextureAtlasSprite sprite, int textureHeight) {
+    private static float normalizeV(float pixelV, UVRegion region, int textureHeight) {
         float relativeV = pixelV / textureHeight;
-        return sprite.getV0() + (sprite.getV1() - sprite.getV0()) * relativeV;
+        return region.v0() + (region.v1() - region.v0()) * relativeV;
     }
 
     /**

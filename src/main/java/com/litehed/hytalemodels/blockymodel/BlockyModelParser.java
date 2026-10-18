@@ -163,14 +163,46 @@ public class BlockyModelParser {
             return BlockyModelGeometry.BlockyShape.invisible();
         }
 
+        Direction frontFace = parseFrontFace(shapeObj);
+
         return new BlockyModelGeometry.BlockyShape(
                 visible,
                 getBooleanOrDefault(shapeObj, "doubleSided", false),
                 parseOffset(shapeObj),
                 parseStretch(shapeObj),
                 parseSize(shapeObj),
-                parseTextureLayout(shapeObj)
+                parseTextureLayout(shapeObj, frontFace)
         );
+    }
+
+    /**
+     * Determine which face the front texture layout applies to.
+     *
+     * @param shapeObj the JsonObject representing the shape
+     * @return the direction front maps to
+     */
+    private static Direction parseFrontFace(JsonObject shapeObj) {
+        String type = shapeObj.has("type") ? shapeObj.get("type").getAsString() : "box";
+        if (!type.equalsIgnoreCase("quad")) {
+            return Direction.SOUTH;
+        }
+
+        String normal = "+Z";
+        if (shapeObj.has("settings")) {
+            JsonObject settings = shapeObj.getAsJsonObject("settings");
+            if (settings.has("normal")) {
+                normal = settings.get("normal").getAsString();
+            }
+        }
+
+        return switch (normal.toUpperCase()) {
+            case "+Z" -> Direction.SOUTH;
+            case "-Z" -> Direction.NORTH;
+            default -> {
+                HytaleModelLoader.LOGGER.warn("Unsupported quad normal '{}', assuming +Z", normal);
+                yield Direction.SOUTH;
+            }
+        };
     }
 
     /**
@@ -238,10 +270,11 @@ public class BlockyModelParser {
     /**
      * Parse the texture layout from a shape JsonObject
      *
-     * @param shapeObj the JsonObject representing the shape
+     * @param shapeObj  the JsonObject representing the shape
+     * @param frontFace the direction the front"layout maps to
      * @return the parsed texture layout map
      */
-    private static Map<Direction, BlockyModelGeometry.FaceTextureLayout> parseTextureLayout(JsonObject shapeObj) {
+    private static Map<Direction, BlockyModelGeometry.FaceTextureLayout> parseTextureLayout(JsonObject shapeObj, Direction frontFace) {
         Map<Direction, BlockyModelGeometry.FaceTextureLayout> layoutMap = new EnumMap<>(Direction.class);
 
         if (!shapeObj.has("textureLayout")) {
@@ -250,7 +283,7 @@ public class BlockyModelParser {
 
         JsonObject texLayout = shapeObj.getAsJsonObject("textureLayout");
         for (String dirName : texLayout.keySet()) {
-            Direction dir = parseDirectionName(dirName);
+            Direction dir = parseDirectionName(dirName, frontFace);
             if (dir != null) {
                 layoutMap.put(dir, parseFaceLayout(texLayout.getAsJsonObject(dirName)));
             }
@@ -293,12 +326,13 @@ public class BlockyModelParser {
     /**
      * Parse a direction name string to a Direction enum
      *
-     * @param name the direction name string
+     * @param name      the direction name string
+     * @param frontFace the direction front maps to for this shape
      * @return the corresponding Direction enum, or null if unknown
      */
-    private static Direction parseDirectionName(String name) {
+    private static Direction parseDirectionName(String name, Direction frontFace) {
         return switch (name.toLowerCase()) {
-            case "front" -> Direction.SOUTH;
+            case "front" -> frontFace;
             case "back" -> Direction.NORTH;
             case "left" -> Direction.WEST;
             case "right" -> Direction.EAST;

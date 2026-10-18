@@ -3,7 +3,7 @@ package com.litehed.hytalemodels.api.block.entity;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.core.Direction;
 
-public class HytaleRenderState extends BlockEntityRenderState {
+public class HytaleBlockEntityRenderState extends BlockEntityRenderState {
     public String modelName;
     public int animationTick; // Animation tick
     public float partialTick; // Partial tick for smooth animation

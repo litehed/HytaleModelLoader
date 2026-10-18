@@ -20,6 +20,9 @@ public class ItemInit {
     public static final DeferredItem<BlockItem> ASH_LEAVES = ITEMS.registerSimpleBlockItem("ash_leaves", BlockInit.ASH_LEAVES);
     public static final DeferredItem<BlockItem> SLOPE_HOLLOW = ITEMS.registerSimpleBlockItem("slope_hay_hollow", BlockInit.SLOPE_HOLLOW);
 
+    public static final DeferredItem<BlockItem> GOBLIN_ITEM = ITEMS.registerSimpleBlockItem("goblin", BlockInit.GOBLIN);
+
+
     public static final DeferredItem<Item> ADAMANTITE_PICK = ITEMS.registerSimpleItem("adamantite");
     public static final DeferredItem<Item> ONYXIUM = ITEMS.registerSimpleItem("onyxium");
 }

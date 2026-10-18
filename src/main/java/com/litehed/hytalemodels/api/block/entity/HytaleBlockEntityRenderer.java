@@ -36,7 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S extends HytaleRenderState>
+public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S extends HytaleBlockEntityRenderState>
         implements BlockEntityRenderer<T, S> {
 
     private final Map<String, BlockyModelGeometry> geometryCache = new HashMap<>();

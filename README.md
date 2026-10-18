@@ -53,15 +53,11 @@ Refer to the wiki to learn how to create and animate your models.
 
 ### v2.0.0
 
-- [ ] Implement entity model loading
-- [ ] Support for custom render layers and transparency blending
+- [x] Implement entity model loading
 - [ ] Clean code and docs for v2 release
-
-### v2.1.0
-
 - [ ] Add animation support for entities
 
-### v2.2.0
+### v2.1.0
 
 - [ ] Add player model swapping
 
