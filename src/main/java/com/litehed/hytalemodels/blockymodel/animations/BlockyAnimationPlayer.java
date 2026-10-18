@@ -34,6 +34,7 @@ public class BlockyAnimationPlayer {
 
     /**
      * Resolves the input time in ticks to a valid time within the animation's duration
+     *
      * @param timeInTicks The input time in ticks
      * @return A time value that is either clamped to the animation's duration (if holdLastKeyframe is true) else wrapped
      */
@@ -46,8 +47,9 @@ public class BlockyAnimationPlayer {
 
     /**
      * Merges a new NodeTransform into the map for a given nodeId
-     * @param map The map to merge into
-     * @param nodeId The ID of the node whose transform is being merged
+     *
+     * @param map      The map to merge into
+     * @param nodeId   The ID of the node whose transform is being merged
      * @param incoming The new NodeTransform to merge
      */
     private static void mergeIntoMap(Map<String, NodeTransform> map,
@@ -58,15 +60,19 @@ public class BlockyAnimationPlayer {
 
     /**
      * Calculates the current transforms for all nodes based on the input time in ticks
+     *
      * @param timeInTicks The current time in ticks for which to calculate the transforms
      * @return A map of node IDs to their corresponding NodeTransforms at the given time
      */
     public Map<String, NodeTransform> calculateTransforms(float timeInTicks) {
         float t = resolveTime(timeInTicks);
+        float duration = definition.getDuration();
+        // A looping animation interpolates from its last keyframe back round to its first
+        boolean cyclic = !definition.isHoldLastKeyframe();
         Map<String, NodeTransform> transforms = new HashMap<>();
 
         positionInterpolators.forEach((nodeId, interp) -> {
-            Vector3f pos = interp.interpolate(t);
+            Vector3f pos = interp.interpolate(t, duration, cyclic);
             if (pos != null) {
                 Vector3f scaled = pos.mul(POSITION_SCALE, new Vector3f());
                 mergeIntoMap(transforms, nodeId, NodeTransform.translation(scaled));
@@ -74,14 +80,14 @@ public class BlockyAnimationPlayer {
         });
 
         orientationInterpolators.forEach((nodeId, interp) -> {
-            Quaternionf rot = interp.interpolate(t);
+            Quaternionf rot = interp.interpolate(t, duration, cyclic);
             if (rot != null) {
                 mergeIntoMap(transforms, nodeId, NodeTransform.rotation(rot));
             }
         });
 
         scaleInterpolators.forEach((nodeId, interp) -> {
-            Vector3f scale = interp.interpolate(t);
+            Vector3f scale = interp.interpolate(t, duration, cyclic);
             if (scale != null) {
                 mergeIntoMap(transforms, nodeId, NodeTransform.scale(scale));
             }
@@ -132,8 +138,9 @@ public class BlockyAnimationPlayer {
 
     /**
      * Utility method to filter and cast a list of BlockyKeyframes to a specific subtype, based on the provided class type
-     * @param <K> The specific subtype of BlockyKeyframe to filter and cast to
-     * @param raw The original list of BlockyKeyframes to filter and cast
+     *
+     * @param <K>  The specific subtype of BlockyKeyframe to filter and cast to
+     * @param raw  The original list of BlockyKeyframes to filter and cast
      * @param type The Class object representing the specific subtype of BlockyKeyframe to filter and cast to
      * @return A new list containing only the keyframes from the original list that are instances of the specified type, cast to that type
      */
@@ -153,18 +160,19 @@ public class BlockyAnimationPlayer {
             this.keyframes = new ArrayList<>(keyframes);
         }
 
-        Vector3f interpolate(float t) {
+        Vector3f interpolate(float t, float duration, boolean cyclic) {
             if (keyframes.isEmpty()) return null;
             if (keyframes.size() == 1) return keyframes.getFirst().getDelta();
 
-            int prev = prevIndex(keyframes, t);
-            int next = Math.min(prev + 1, keyframes.size() - 1);
+            Segment seg = findSegment(keyframes, t, duration, cyclic);
+            int prev = seg.from();
+            int next = seg.to();
 
             if (prev == next) return new Vector3f(keyframes.get(prev).getDelta());
 
             BlockyKeyframe.PositionKeyframe a = keyframes.get(prev);
             BlockyKeyframe.PositionKeyframe b = keyframes.get(next);
-            float alpha = clampAlpha(t, a.getTime(), b.getTime());
+            float alpha = seg.alpha();
 
             return interpolateVec(a.getDelta(), b.getDelta(), alpha, a.getInterpolationType());
         }
@@ -178,18 +186,19 @@ public class BlockyAnimationPlayer {
             this.keyframes = new ArrayList<>(keyframes);
         }
 
-        Quaternionf interpolate(float t) {
+        Quaternionf interpolate(float t, float duration, boolean cyclic) {
             if (keyframes.isEmpty()) return null;
             if (keyframes.size() == 1) return keyframes.getFirst().getDelta();
 
-            int prev = prevIndex(keyframes, t);
-            int next = Math.min(prev + 1, keyframes.size() - 1);
+            Segment seg = findSegment(keyframes, t, duration, cyclic);
+            int prev = seg.from();
+            int next = seg.to();
 
             if (prev == next) return new Quaternionf(keyframes.get(prev).getDelta());
 
             BlockyKeyframe.OrientationKeyframe a = keyframes.get(prev);
             BlockyKeyframe.OrientationKeyframe b = keyframes.get(next);
-            float alpha = clampAlpha(t, a.getTime(), b.getTime());
+            float alpha = seg.alpha();
 
             float slerpAlpha = (a.getInterpolationType() == BlockyKeyframe.InterpolationType.LINEAR)
                     ? alpha
@@ -206,18 +215,19 @@ public class BlockyAnimationPlayer {
             this.keyframes = new ArrayList<>(keyframes);
         }
 
-        Vector3f interpolate(float t) {
+        Vector3f interpolate(float t, float duration, boolean cyclic) {
             if (keyframes.isEmpty()) return null;
             if (keyframes.size() == 1) return keyframes.getFirst().getDelta();
 
-            int prev = prevIndex(keyframes, t);
-            int next = Math.min(prev + 1, keyframes.size() - 1);
+            Segment seg = findSegment(keyframes, t, duration, cyclic);
+            int prev = seg.from();
+            int next = seg.to();
 
             if (prev == next) return new Vector3f(keyframes.get(prev).getDelta());
 
             BlockyKeyframe.ScaleKeyframe a = keyframes.get(prev);
             BlockyKeyframe.ScaleKeyframe b = keyframes.get(next);
-            float alpha = clampAlpha(t, a.getTime(), b.getTime());
+            float alpha = seg.alpha();
 
             return interpolateVec(a.getDelta(), b.getDelta(), alpha, a.getInterpolationType());
         }
@@ -240,9 +250,10 @@ public class BlockyAnimationPlayer {
 
     /**
      * Utility method to clamp the interpolation alpha value between 0 and 1 based on the input time and the keyframe times
-     * @param t The current time for which to calculate the alpha
+     *
+     * @param t      The current time for which to calculate the alpha
      * @param tStart The time of the previous keyframe
-     * @param tEnd The time of the next keyframe
+     * @param tEnd   The time of the next keyframe
      * @return The clamped alpha value between 0 and 1
      */
     private static float clampAlpha(float t, float tStart, float tEnd) {
@@ -253,6 +264,7 @@ public class BlockyAnimationPlayer {
 
     /**
      * Utility method to apply a smoothstep function to the input alpha value for smoother interpolation
+     *
      * @param t The input alpha value between 0 and 1
      * @return The output alpha value after applying the smoothstep function, also between 0 and 1
      */
@@ -262,9 +274,10 @@ public class BlockyAnimationPlayer {
 
     /**
      * Utility method to linearly interpolate between two Vector3f values based on the input alpha
+     *
      * @param from The starting Vector3f value
-     * @param to The ending Vector3f value
-     * @param t The interpolation alpha value between 0 and 1
+     * @param to   The ending Vector3f value
+     * @param t    The interpolation alpha value between 0 and 1
      * @return A new Vector3f that is the result of linearly interpolating between 'from' and 'to' based on 't'
      */
     private static Vector3f lerpVec(Vector3f from, Vector3f to, float t) {
@@ -273,9 +286,10 @@ public class BlockyAnimationPlayer {
 
     /**
      * Utility method to interpolate between two Vector3f values using either linear or smooth interpolation based on the specified type
+     *
      * @param from The starting Vector3f value
-     * @param to The ending Vector3f value
-     * @param t The interpolation alpha value between 0 and 1
+     * @param to   The ending Vector3f value
+     * @param t    The interpolation alpha value between 0 and 1
      * @return A new Vector3f that is the result of interpolating between 'from' and 'to' based on 't'
      */
     private static Vector3f smoothstepVec(Vector3f from, Vector3f to, float t) {
@@ -284,10 +298,11 @@ public class BlockyAnimationPlayer {
 
     /**
      * Utility method to interpolate between two Vector3f values based on the input alpha and interpolation type (linear or smooth)
-     * @param from The starting Vector3f value
-     * @param to The ending Vector3f value
+     *
+     * @param from  The starting Vector3f value
+     * @param to    The ending Vector3f value
      * @param alpha The interpolation alpha value between 0 and 1
-     * @param type The interpolation type (LINEAR or SMOOTH)
+     * @param type  The interpolation type (LINEAR or SMOOTH)
      * @return A new Vector3f that is the result of interpolating between 'from' and 'to' based on 'alpha'
      */
     private static Vector3f interpolateVec(Vector3f from, Vector3f to, float alpha,
@@ -299,10 +314,53 @@ public class BlockyAnimationPlayer {
     }
 
     /**
+     * The pair of keyframes a time falls between, and how far along that pair it is
+     *
+     * @param from  index of the keyframe the segment starts at
+     * @param to    index of the keyframe the segment ends at
+     * @param alpha progress from 0 to 1 along the segment
+     */
+    private record Segment(int from, int to, float alpha) {
+    }
+
+    /**
+     * Finds the keyframe segment containing the given time. For a cyclic (looping) animation, times after the last
+     * keyframe interpolate towards the first keyframe one loop later, and times before the first keyframe interpolate
+     * from the last keyframe one loop earlier. Otherwise, the first and last keyframes are simply held.
+     *
+     * @param keyframes keyframes sorted by time
+     * @param t         the time, already wrapped into the animation's duration
+     * @param duration  the length of one loop
+     * @param cyclic    whether the animation loops
+     * @return the segment containing the time
+     */
+    private static <K extends BlockyKeyframe> Segment findSegment(List<K> keyframes, float t,
+                                                                  float duration, boolean cyclic) {
+        int last = keyframes.size() - 1;
+        int prev = prevIndex(keyframes, t);
+        float firstTime = keyframes.getFirst().getTime();
+        float lastTime = keyframes.get(last).getTime();
+
+        if (cyclic && last > 0 && duration > 0f) {
+            if (t < firstTime) {
+                return new Segment(last, 0, clampAlpha(t, lastTime - duration, firstTime));
+            }
+            if (prev == last) {
+                return new Segment(last, 0, clampAlpha(t, lastTime, firstTime + duration));
+            }
+        }
+
+        int next = Math.min(prev + 1, last);
+        float alpha = prev == next ? 0f : clampAlpha(t, keyframes.get(prev).getTime(), keyframes.get(next).getTime());
+        return new Segment(prev, next, alpha);
+    }
+
+    /**
      * Utility method to find the index of the previous keyframe in a sorted list of keyframes based on the input time
-     * @param <K> The specific subtype of BlockyKeyframe contained in the list
+     *
+     * @param <K>       The specific subtype of BlockyKeyframe contained in the list
      * @param keyframes A list of keyframes sorted by their time value in ascending order
-     * @param time The input time for which to find the previous keyframe index
+     * @param time      The input time for which to find the previous keyframe index
      * @return The index of the keyframe in the list that is the greatest keyframe time less than or equal to the input time
      */
     private static <K extends BlockyKeyframe> int prevIndex(List<K> keyframes, float time) {
