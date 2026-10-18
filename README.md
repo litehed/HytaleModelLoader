@@ -54,8 +54,10 @@ Refer to the wiki to learn how to create and animate your models.
 ### v2.0.0
 
 - [x] Implement entity model loading
-- [ ] Clean code and docs for v2 release
-- [ ] Add animation support for entities
+- [x] Entity docs for v2 release
+- [x] Add animation support for entities
+- [ ] Animation docs
+- [ ] Final code cleanup
 
 ### v2.1.0
 

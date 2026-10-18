@@ -1,10 +1,14 @@
 package com.litehed.hytalemodels.api.entity;
 
 import com.litehed.hytalemodels.HytaleModelLoader;
+import com.litehed.hytalemodels.api.BlockyPose;
 import com.litehed.hytalemodels.blockymodel.BlockyModelGeometry;
 import com.litehed.hytalemodels.blockymodel.BlockyModelLoader;
 import com.litehed.hytalemodels.blockymodel.PreparedBlockyModel;
 import com.litehed.hytalemodels.blockymodel.UVRegion;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationDefinition;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationLoader;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
@@ -14,6 +18,7 @@ import net.minecraft.client.renderer.entity.MobRenderer;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.ARGB;
@@ -28,7 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Base renderer for living entities drawn from a blockymodel. Static pose only for now
+ * Base renderer for mobs drawn from a .blockymodel
  *
  * @param <T> the entity type
  * @param <S> the render state type
@@ -36,10 +41,16 @@ import java.util.Optional;
 public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntityRenderState>
         extends MobRenderer<T, S, BlockyPlaceholderModel<S>> {
 
-    // Renderers are recreated on resource reload, so this cache never outlives its textures
-    private final Map<String, Optional<Prepared>> preparedCache = new HashMap<>();
+    /**
+     * Blocky animation time units that pass per game tick, matching the block entity renderers.
+     * Multiply ageInTicks by this when playing a keyframe animation.
+     */
+    public static final float ANIMATION_UNITS_PER_TICK = 4.0f;
 
-    // Set for the duration of submit(); getRenderType() has no access to them otherwise
+    // Renderers are recreated on resource reload, so these caches never outlive their textures
+    private final Map<Identifier, Optional<Prepared>> preparedCache = new HashMap<>();
+    private final Map<Identifier, Optional<BlockyAnimationPlayer>> animationCache = new HashMap<>();
+
     private PoseStack activePoseStack;
     private SubmitNodeCollector activeCollector;
 
@@ -49,7 +60,7 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
 
     /**
      * @param entity the entity being rendered
-     * @return the model name
+     * @return the model name, resolved to models/name.blockymodel
      */
     protected abstract String getModelName(T entity);
 
@@ -63,9 +74,20 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
         return 1.0f;
     }
 
+    /**
+     * Poses the model for this frame, like vanilla's setupAnim. Called once per entity per frame, before
+     * the model is drawn. Everything added to the pose is layered on top of the model's rest pose.
+     *
+     * @param renderState the entity's render state
+     * @param pose        the pose to add to
+     */
+    protected void setupAnim(S renderState, BlockyPose pose) {
+    }
+
     @Override
     public void extractRenderState(T entity, S renderState, float partialTick) {
         super.extractRenderState(entity, renderState, partialTick);
+        renderState.modelNamespace = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).getNamespace();
         renderState.modelName = getModelName(entity);
     }
 
@@ -92,16 +114,18 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
     }
 
     private void submitBlockyModel(S renderState, boolean translucent) {
-        Prepared prepared = getOrPrepare(renderState.modelName);
+        Prepared prepared = getOrPrepare(renderState.modelNamespace, renderState.modelName);
         if (prepared == null) {
             return;
         }
 
+        BlockyPose pose = new BlockyPose();
+        setupAnim(renderState, pose);
+
         PoseStack poseStack = activePoseStack;
         poseStack.pushPose();
 
-        // Vanilla's model space is Y-down with the origin 1.501 above the feet. Undo that so we are
-        // back in the entity's own frame, with Y up and the origin at the feet
+        // Vanilla's model space is Y-down with the origin 1.501 above the feet
         poseStack.translate(0.0F, 1.501F, 0.0F);
         poseStack.scale(-1.0F, -1.0F, 1.0F);
         // Vanilla models face -Z, Blocky models face +Z
@@ -112,43 +136,67 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
 
         // Same values vanilla uses for submitModel
         RenderType renderType = translucent
-                ? RenderTypes.itemEntityTranslucentCull(getEntityTexture(renderState.modelName))
+                ? RenderTypes.itemEntityTranslucentCull(getTextureLocation(renderState))
                 : prepared.renderType();
         int overlay = getOverlayCoords(renderState, getWhiteOverlayProgress(renderState));
         int tint = ARGB.multiply(translucent ? 654311423 : -1, getModelTint(renderState));
 
-        prepared.model().submit(poseStack, activeCollector, renderType, renderState.lightCoords, overlay, tint);
+        prepared.model().submit(poseStack, activeCollector, renderType, renderState.lightCoords, overlay, tint, pose);
 
         poseStack.popPose();
     }
 
     @Override
     public Identifier getTextureLocation(S renderState) {
-        return getEntityTexture(renderState.modelName);
+        return getEntityTexture(renderState.modelNamespace, renderState.modelName);
+    }
+
+    /**
+     * Loads a keyframe animation for the entity's model, cached per renderer
+     *
+     * @param renderState   the entity's render state
+     * @param animationName the animation's file name without extension. Must be lower-case
+     * @return the animation, or null if it is missing or invalid
+     */
+    protected @Nullable BlockyAnimationPlayer getAnimation(S renderState, String animationName) {
+        Identifier location = getAnimationLocation(renderState.modelNamespace, renderState.modelName, animationName);
+        return animationCache.computeIfAbsent(location, id -> {
+            BlockyAnimationDefinition definition = BlockyAnimationLoader.INSTANCE.loadAnimation(id);
+            return Optional.ofNullable(definition).map(BlockyAnimationPlayer::new);
+        }).orElse(null);
     }
 
     protected RenderType createRenderType(Identifier texture) {
         return RenderTypes.entityCutout(texture);
     }
 
-    protected Identifier getModelLocation(String modelName) {
-        return Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "models/" + modelName + ".blockymodel");
+    protected Identifier getModelLocation(String namespace, String modelName) {
+        return Identifier.fromNamespaceAndPath(namespace, "models/" + modelName + ".blockymodel");
     }
 
-    protected Identifier getEntityTexture(String modelName) {
-        return Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "textures/entity/" + modelName + ".png");
+    /**
+     * @return the full resource path of the model's PNG texture
+     */
+    protected Identifier getEntityTexture(String namespace, String modelName) {
+        return Identifier.fromNamespaceAndPath(namespace, "textures/entity/" + modelName + ".png");
     }
 
-    private Prepared getOrPrepare(String modelName) {
-        if (modelName == null) {
+    protected Identifier getAnimationLocation(String namespace, String modelName, String animationName) {
+        return Identifier.fromNamespaceAndPath(namespace,
+                "animations/" + modelName + "/" + animationName + ".blockyanim");
+    }
+
+    private Prepared getOrPrepare(String namespace, String modelName) {
+        if (namespace == null || modelName == null) {
             return null;
         }
-        return preparedCache.computeIfAbsent(modelName, this::prepare).orElse(null);
+        Identifier key = Identifier.fromNamespaceAndPath(namespace, modelName);
+        return preparedCache.computeIfAbsent(key, id -> prepare(namespace, modelName)).orElse(null);
     }
 
-    private Optional<Prepared> prepare(String modelName) {
-        Identifier modelLocation = getModelLocation(modelName);
-        Identifier texture = getEntityTexture(modelName);
+    private Optional<Prepared> prepare(String namespace, String modelName) {
+        Identifier modelLocation = getModelLocation(namespace, modelName);
+        Identifier texture = getEntityTexture(namespace, modelName);
         try {
             BlockyModelGeometry geometry = BlockyModelLoader.INSTANCE.loadGeometry(
                     new BlockyModelGeometry.Settings(modelLocation));

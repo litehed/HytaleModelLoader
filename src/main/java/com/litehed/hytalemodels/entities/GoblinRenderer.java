@@ -1,8 +1,10 @@
 package com.litehed.hytalemodels.entities;
 
+import com.litehed.hytalemodels.api.BlockyPose;
 import com.litehed.hytalemodels.api.entity.HytaleEntityRenderState;
 import com.litehed.hytalemodels.api.entity.HytaleEntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
+import net.minecraft.util.Mth;
 
 public class GoblinRenderer extends HytaleEntityRenderer<GoblinEntity, HytaleEntityRenderState> {
 
@@ -27,5 +29,20 @@ public class GoblinRenderer extends HytaleEntityRenderer<GoblinEntity, HytaleEnt
     @Override
     protected float getModelScale() {
         return SCALE;
+    }
+
+    @Override
+    protected void setupAnim(HytaleEntityRenderState state, BlockyPose pose) {
+        // Keyframed idle from animations/goblin/idle.blockyanim, looping
+        pose.play(getAnimation(state, "idle"), state.ageInTicks * ANIMATION_UNITS_PER_TICK);
+
+        // Minecraft-style procedural motion stacked on top: head look and a sin-based leg swing
+        pose.rotateY("Head", state.yRot * Mth.DEG_TO_RAD);
+        pose.rotateX("Head", state.xRot * Mth.DEG_TO_RAD);
+
+        float swing = state.walkAnimationPos * 0.6662f;
+        float amount = Math.min(state.walkAnimationSpeed, 1.0f);
+        pose.rotateX("R-Thigh", Mth.cos(swing) * 1.4f * amount);
+        pose.rotateX("L-Thigh", Mth.cos(swing + Mth.PI) * 1.4f * amount);
     }
 }

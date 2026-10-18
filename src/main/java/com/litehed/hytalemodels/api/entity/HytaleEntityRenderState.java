@@ -8,5 +8,6 @@ import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
  * scale, pose, invisibility) is inherited from {@link LivingEntityRenderState}
  */
 public class HytaleEntityRenderState extends LivingEntityRenderState {
+    public String modelNamespace; // Namespace model/animations exists in
     public String modelName; // Name of model to render
 }

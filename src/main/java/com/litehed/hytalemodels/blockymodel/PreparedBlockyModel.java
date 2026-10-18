@@ -1,5 +1,7 @@
 package com.litehed.hytalemodels.blockymodel;
 
+import com.litehed.hytalemodels.api.BlockyPose;
+import com.litehed.hytalemodels.api.NodeTransform;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -10,7 +12,9 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A static, precomputed model snapshot with node transforms and baked face geometry.
@@ -20,10 +24,10 @@ public final class PreparedBlockyModel {
 
     private static final float UNITS_PER_BLOCK = 32.0f; // Same as TransformCalculator.POSITION_SCALE
 
-    private final List<Part> parts;
+    private final Bone[] bones;
 
-    private PreparedBlockyModel(List<Part> parts) {
-        this.parts = parts;
+    private PreparedBlockyModel(Bone[] bones) {
+        this.bones = bones;
     }
 
     /**
@@ -45,22 +49,42 @@ public final class PreparedBlockyModel {
      * @return the prepared model
      */
     public static PreparedBlockyModel create(BlockyModelGeometry geometry, UVRegion region) {
-        List<Part> parts = new ArrayList<>();
-        for (BlockyModelGeometry.BlockyNode node : geometry.getNodes()) {
-            if (!node.hasShape()) {
-                continue;
-            }
-            Part part = buildPart(node, region);
-            if (part != null) {
-                parts.add(part);
-            }
+        List<BlockyModelGeometry.BlockyNode> nodes = geometry.getNodes();
+
+        Map<BlockyModelGeometry.BlockyNode, Integer> indices = new IdentityHashMap<>();
+        for (int i = 0; i < nodes.size(); i++) {
+            indices.put(nodes.get(i), i);
         }
-        return new PreparedBlockyModel(parts);
+
+        Bone[] bones = new Bone[nodes.size()];
+        for (int i = 0; i < bones.length; i++) {
+            bones[i] = buildBone(nodes.get(i), i, indices, region);
+        }
+        return new PreparedBlockyModel(bones);
     }
 
-    private static Part buildPart(BlockyModelGeometry.BlockyNode node, UVRegion region) {
-        BlockyModelGeometry.BlockyShape shape = node.getShape();
+    private static Bone buildBone(BlockyModelGeometry.BlockyNode node, int index,
+                                  Map<BlockyModelGeometry.BlockyNode, Integer> indices, UVRegion region) {
+        BlockyModelGeometry.BlockyNode parent = node.getParent();
+        int parentIndex = parent == null ? -1 : indices.get(parent);
+        if (parentIndex >= index) {
+            throw new IllegalStateException("Node " + node.getName() + " is listed before its parent");
+        }
 
+        // A node's own shape offset, and the offset its children are attached at
+        Vector3f shapeOffset = new Vector3f();
+        Quad[] quads = new Quad[0];
+        if (node.hasShape()) {
+            shapeOffset = node.getShape().getOffset();
+            quads = buildQuads(node.getShape(), region);
+        }
+        Vector3f attach = parent != null && parent.hasShape() ? parent.getShape().getOffset() : new Vector3f();
+
+        return new Bone(node.getId(), node.getName(), parentIndex, node.getPosition(), node.getOrientation(),
+                attach, shapeOffset, quads);
+    }
+
+    private static Quad[] buildQuads(BlockyModelGeometry.BlockyShape shape, UVRegion region) {
         Vector3f halfSizes = TransformCalculator.calculateHalfSizes(shape.getSize());
         Vector3f min = new Vector3f(-halfSizes.x, -halfSizes.y, -halfSizes.z);
         Vector3f max = new Vector3f(halfSizes.x, halfSizes.y, halfSizes.z);
@@ -79,25 +103,7 @@ public final class PreparedBlockyModel {
                 quads.add(buildQuad(direction, min, max, region, layout, shape.getOriginalSize(), !reversed));
             }
         }
-
-        // Pivot-only nodes
-        if (quads.isEmpty()) {
-            return null;
-        }
-
-        Vector3f worldPos = TransformCalculator.calculateWorldPosition(node);
-        Quaternionf worldRot = TransformCalculator.calculateWorldOrientation(node);
-
-        Vector3f rotatedOffset = shape.getOffset();
-        worldRot.transform(rotatedOffset);
-
-        Vector3f center = new Vector3f(
-                (worldPos.x + rotatedOffset.x) / UNITS_PER_BLOCK,
-                (worldPos.y + rotatedOffset.y) / UNITS_PER_BLOCK,
-                (worldPos.z + rotatedOffset.z) / UNITS_PER_BLOCK
-        );
-
-        return new Part(node.getId(), center, worldRot, quads.toArray(new Quad[0]));
+        return quads.toArray(new Quad[0]);
     }
 
     private static Quad buildQuad(Direction direction, Vector3f min, Vector3f max, UVRegion region,
@@ -123,37 +129,89 @@ public final class PreparedBlockyModel {
     }
 
     /**
-     * Submits every part of the model. The pose stack's current transform is treated as the model origin
+     * Submits the model in its rest pose.
+     *
+     * @see #submit(PoseStack, SubmitNodeCollector, RenderType, int, int, int, BlockyPose)
+     */
+    public void submit(PoseStack poseStack, SubmitNodeCollector collector, RenderType renderType,
+                       int lightCoords, int overlayCoords, int color) {
+        submit(poseStack, collector, renderType, lightCoords, overlayCoords, color, new BlockyPose());
+    }
+
+    /**
+     * Submits every part of the model. The pose stack's current transform is model origin
      *
      * @param poseStack     the pose stack, already positioned/rotated/scaled for the model as a whole
      * @param collector     the collector to submit geometry to
      * @param renderType    the render type to draw with
      * @param lightCoords   packed light coordinates for the whole model
-     * @param overlayCoords packed overlay coordinates (hurt flash); use {@code OverlayTexture.NO_OVERLAY} for none
+     * @param overlayCoords packed overlay coordinates (hurt flash); use OverlayTexture.NO_OVERLAY for none
      *                      Only has an effect with render types whose vertex format includes the overlay element
      * @param color         packed ARGB tint multiplied into every vertex; -1 (opaque white) for none
+     * @param blockyPose    transforms layered on the rest pose
      */
     public void submit(PoseStack poseStack, SubmitNodeCollector collector, RenderType renderType,
-                       int lightCoords, int overlayCoords, int color) {
+                       int lightCoords, int overlayCoords, int color, BlockyPose blockyPose) {
         int blockLight = lightCoords & 0xFFFF;
         int skyLight = (lightCoords >> 16) & 0xFFFF;
 
-        for (Part part : parts) {
+        // World-space (model-space) origin and orientation of each node, in model units
+        Vector3f[] origins = new Vector3f[bones.length];
+        Quaternionf[] rotations = new Quaternionf[bones.length];
+        Vector3f local = new Vector3f();
+
+        for (int i = 0; i < bones.length; i++) {
+            Bone bone = bones[i];
+            NodeTransform animated = blockyPose.resolve(bone.id, bone.name);
+
+            local.set(bone.restPosition);
+            if (animated != null) {
+                local.add(animated.position().mul(UNITS_PER_BLOCK));
+            }
+
+            if (bone.parent >= 0) {
+                local.add(bone.attach);
+                rotations[bone.parent].transform(local);
+                origins[i] = new Vector3f(origins[bone.parent]).add(local);
+                rotations[i] = new Quaternionf(rotations[bone.parent]).mul(bone.restRotation);
+            } else {
+                origins[i] = new Vector3f(local);
+                rotations[i] = new Quaternionf(bone.restRotation);
+            }
+            if (animated != null) {
+                // Animation rotations are deltas in the node's own frame, applied on top of its rest orientation
+                rotations[i].mul(animated.rotation());
+            }
+
+            if (bone.quads.length == 0 || (animated != null && !animated.visible())) {
+                continue;
+            }
+
+            Vector3f center = new Vector3f(bone.shapeOffset);
+            rotations[i].transform(center);
+            center.add(origins[i]).div(UNITS_PER_BLOCK);
+
             poseStack.pushPose();
-            poseStack.translate(part.center.x, part.center.y, part.center.z);
-            poseStack.mulPose(part.rotation);
+            poseStack.translate(center.x, center.y, center.z);
+            poseStack.mulPose(rotations[i]);
+            if (animated != null) {
+                Vector3f scale = animated.scale();
+                if (scale.x != 1.0f || scale.y != 1.0f || scale.z != 1.0f) {
+                    poseStack.scale(scale.x, scale.y, scale.z);
+                }
+            }
 
             collector.submitCustomGeometry(poseStack, renderType,
-                    (pose, buffer) -> writePart(part, pose, buffer, blockLight, skyLight, overlayCoords, color));
+                    (pose, buffer) -> writeQuads(bone.quads, pose, buffer, blockLight, skyLight, overlayCoords, color));
 
             poseStack.popPose();
         }
     }
 
-    private static void writePart(Part part, PoseStack.Pose pose, VertexConsumer buffer,
-                                  int blockLight, int skyLight, int overlayCoords, int color) {
+    private static void writeQuads(Quad[] quads, PoseStack.Pose pose, VertexConsumer buffer,
+                                   int blockLight, int skyLight, int overlayCoords, int color) {
         Vector3f normal = new Vector3f();
-        for (Quad quad : part.quads) {
+        for (Quad quad : quads) {
             normal.set(quad.nx, quad.ny, quad.nz);
             pose.normal().transform(normal);
 
@@ -169,9 +227,11 @@ public final class PreparedBlockyModel {
     }
 
     /**
-     * One node's worth of geometry. The node id is kept so animation can address parts later.
+     * One node: its rest transform, where its children attach, and the faces of its shape
+     * Nodes without a shape are kept because they still carry a transform for their children
      */
-    private record Part(String nodeId, Vector3f center, Quaternionf rotation, Quad[] quads) {
+    private record Bone(String id, String name, int parent, Vector3f restPosition, Quaternionf restRotation,
+                        Vector3f attach, Vector3f shapeOffset, Quad[] quads) {
     }
 
     /**
