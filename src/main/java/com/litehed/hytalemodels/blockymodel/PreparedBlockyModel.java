@@ -22,8 +22,6 @@ import java.util.Map;
  */
 public final class PreparedBlockyModel {
 
-    private static final float UNITS_PER_BLOCK = 32.0f; // Same as TransformCalculator.POSITION_SCALE
-
     private final Bone[] bones;
 
     private PreparedBlockyModel(Bone[] bones) {
@@ -31,10 +29,10 @@ public final class PreparedBlockyModel {
     }
 
     /**
-     * Precomputes render data for every node of the geometry that has visible faces
+     * Prepares a model for rendering with an atlas sprite
      *
      * @param geometry the parsed model
-     * @param sprite   the atlas sprite the model's UVs are resolved against
+     * @param sprite   the sprite the UVs are mapped into
      * @return the prepared model
      */
     public static PreparedBlockyModel create(BlockyModelGeometry geometry, TextureAtlasSprite sprite) {
@@ -42,10 +40,10 @@ public final class PreparedBlockyModel {
     }
 
     /**
-     * Precomputes render data for every node of the geometry that has visible faces
+     * Prepares a model for rendering with any texture region
      *
      * @param geometry the parsed model
-     * @param region   the texture region the model's UVs are resolved against
+     * @param region   the region the UVs are mapped into
      * @return the prepared model
      */
     public static PreparedBlockyModel create(BlockyModelGeometry geometry, UVRegion region) {
@@ -71,7 +69,7 @@ public final class PreparedBlockyModel {
             throw new IllegalStateException("Node " + node.getName() + " is listed before its parent");
         }
 
-        // A node's own shape offset, and the offset its children are attached at
+        // Children attach at the shape offset of their parent
         Vector3f shapeOffset = new Vector3f();
         Quad[] quads = new Quad[0];
         if (node.hasShape()) {
@@ -129,7 +127,7 @@ public final class PreparedBlockyModel {
     }
 
     /**
-     * Submits the model in its rest pose.
+     * Submits the model in its rest pose
      *
      * @see #submit(PoseStack, SubmitNodeCollector, RenderType, int, int, int, BlockyPose)
      */
@@ -139,15 +137,14 @@ public final class PreparedBlockyModel {
     }
 
     /**
-     * Submits every part of the model. The pose stack's current transform is model origin
+     * Submits the model with a pose. The pose stack's current transform is the model origin
      *
-     * @param poseStack     the pose stack, already positioned/rotated/scaled for the model as a whole
+     * @param poseStack     the pose stack, already moved to where the model goes
      * @param collector     the collector to submit geometry to
      * @param renderType    the render type to draw with
-     * @param lightCoords   packed light coordinates for the whole model
-     * @param overlayCoords packed overlay coordinates (hurt flash); use OverlayTexture.NO_OVERLAY for none
-     *                      Only has an effect with render types whose vertex format includes the overlay element
-     * @param color         packed ARGB tint multiplied into every vertex; -1 (opaque white) for none
+     * @param lightCoords   packed light for the whole model
+     * @param overlayCoords packed overlay for the hurt flash, or OverlayTexture.NO_OVERLAY
+     * @param color         packed ARGB tint, -1 for none
      * @param blockyPose    transforms layered on the rest pose
      */
     public void submit(PoseStack poseStack, SubmitNodeCollector collector, RenderType renderType,
@@ -155,7 +152,7 @@ public final class PreparedBlockyModel {
         int blockLight = lightCoords & 0xFFFF;
         int skyLight = (lightCoords >> 16) & 0xFFFF;
 
-        // World-space (model-space) origin and orientation of each node, in model units
+        // Origin and rotation of each node in model space, in model units
         Vector3f[] origins = new Vector3f[bones.length];
         Quaternionf[] rotations = new Quaternionf[bones.length];
         Vector3f local = new Vector3f();
@@ -166,7 +163,7 @@ public final class PreparedBlockyModel {
 
             local.set(bone.restPosition);
             if (animated != null) {
-                local.add(animated.position().mul(UNITS_PER_BLOCK));
+                local.add(animated.position().mul(TransformCalculator.UNITS_PER_BLOCK));
             }
 
             if (bone.parent >= 0) {
@@ -179,7 +176,7 @@ public final class PreparedBlockyModel {
                 rotations[i] = new Quaternionf(bone.restRotation);
             }
             if (animated != null) {
-                // Animation rotations are deltas in the node's own frame, applied on top of its rest orientation
+                // Animation rotations are applied on top of the rest rotation
                 rotations[i].mul(animated.rotation());
             }
 
@@ -189,7 +186,7 @@ public final class PreparedBlockyModel {
 
             Vector3f center = new Vector3f(bone.shapeOffset);
             rotations[i].transform(center);
-            center.add(origins[i]).div(UNITS_PER_BLOCK);
+            center.add(origins[i]).div(TransformCalculator.UNITS_PER_BLOCK);
 
             poseStack.pushPose();
             poseStack.translate(center.x, center.y, center.z);
@@ -227,15 +224,15 @@ public final class PreparedBlockyModel {
     }
 
     /**
-     * One node: its rest transform, where its children attach, and the faces of its shape
-     * Nodes without a shape are kept because they still carry a transform for their children
+     * One node with its rest transform and the faces of its shape
+     * Nodes without a shape are kept because their children still need their transform
      */
     private record Bone(String id, String name, int parent, Vector3f restPosition, Quaternionf restRotation,
                         Vector3f attach, Vector3f shapeOffset, Quad[] quads) {
     }
 
     /**
-     * One face, already in final vertex order (winding reversal baked in).
+     * One face, already in final vertex order
      */
     private record Quad(float[] positions, float[] uvs, float nx, float ny, float nz) {
     }

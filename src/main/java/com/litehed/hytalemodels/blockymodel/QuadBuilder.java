@@ -12,9 +12,6 @@ public class QuadBuilder {
 
     private static final int TINT_INDEX_NONE = -1;
 
-    private QuadBuilder() {
-    }
-
     /**
      * Creates the baked quad for one face
      *
