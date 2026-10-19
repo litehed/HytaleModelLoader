@@ -41,10 +41,16 @@ import java.util.Optional;
 public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntityRenderState>
         extends MobRenderer<T, S, BlockyPlaceholderModel<S>> {
 
-    // Renderers are recreated on resource reload, so these caches never outlive their textures
+    // Vanilla puts the model origin this far above the feet
+    private static final float VANILLA_MODEL_OFFSET = 1.501F;
+    // Vanilla's tint for translucent entities
+    private static final int TRANSLUCENT_TINT = 654311423;
+
+    // Renderers are recreated on resource reload so these stay fresh
     private final Map<Identifier, Optional<Prepared>> preparedCache = new HashMap<>();
     private final Map<Identifier, Optional<BlockyAnimationPlayer>> animationCache = new HashMap<>();
 
+    // Set during submit so getRenderType can use them
     private PoseStack activePoseStack;
     private SubmitNodeCollector activeCollector;
 
@@ -59,8 +65,7 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
     protected abstract String getModelName(T entity);
 
     /**
-     * Uniform scale applied to the model on top of vanilla's scale attribute. Hytale models are drawn at
-     * 32 units per block, which makes some characters larger than Minecraft mobs.
+     * Scale of the whole model, on top of the scale attribute
      *
      * @return the scale, 1.0 by default
      */
@@ -69,16 +74,18 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
     }
 
     /**
-     * Blocky animation time units that pass per game tick, matching the block entity renderers.
-     * Multiply ageInTicks by this when playing a keyframe animation.
+     * Animation units that pass per game tick, same as the block entity renderers
+     * Multiply ageInTicks by this when playing an animation
+     *
+     * @return animation units per tick, 4 by default
      */
     protected float getAnimationUnitsPerTick() {
         return 4.0f;
     }
 
     /**
-     * Poses the model for this frame, like vanilla's setupAnim. Called once per entity per frame, before
-     * the model is drawn. Everything added to the pose is layered on top of the model's rest pose.
+     * Poses the model for this frame like vanilla's setupAnim
+     * Everything added to the pose is layered on the rest pose
      *
      * @param renderState the entity's render state
      * @param pose        the pose to add to
@@ -108,7 +115,7 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
 
     @Override
     protected @Nullable RenderType getRenderType(S renderState, boolean visible, boolean translucent, boolean glowing) {
-        // Glowing-but-invisible would need vanilla's outline path, which custom geometry does not have
+        // Returning null makes vanilla skip its own model
         if (activePoseStack != null && activeCollector != null && (visible || translucent)) {
             submitBlockyModel(renderState, translucent);
         }
@@ -127,8 +134,8 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
         PoseStack poseStack = activePoseStack;
         poseStack.pushPose();
 
-        // Vanilla's model space is Y-down with the origin 1.501 above the feet
-        poseStack.translate(0.0F, 1.501F, 0.0F);
+        // Undo vanilla's flipped model space
+        poseStack.translate(0.0F, VANILLA_MODEL_OFFSET, 0.0F);
         poseStack.scale(-1.0F, -1.0F, 1.0F);
         // Vanilla models face -Z, Blocky models face +Z
         poseStack.mulPose(Axis.YP.rotationDegrees(180.0F));
@@ -136,12 +143,11 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
         float modelScale = getModelScale();
         poseStack.scale(modelScale, modelScale, modelScale);
 
-        // Same values vanilla uses for submitModel
         RenderType renderType = translucent
                 ? RenderTypes.itemEntityTranslucentCull(getTextureLocation(renderState))
                 : prepared.renderType();
         int overlay = getOverlayCoords(renderState, getWhiteOverlayProgress(renderState));
-        int tint = ARGB.multiply(translucent ? 654311423 : -1, getModelTint(renderState));
+        int tint = ARGB.multiply(translucent ? TRANSLUCENT_TINT : -1, getModelTint(renderState));
 
         prepared.model().submit(poseStack, activeCollector, renderType, renderState.lightCoords, overlay, tint, pose);
 
@@ -168,6 +174,12 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
         }).orElse(null);
     }
 
+    /**
+     * Render type used to draw the model. Override for no culling or transparency
+     *
+     * @param texture the model's texture
+     * @return the render type
+     */
     protected RenderType createRenderType(Identifier texture) {
         return RenderTypes.entityCutout(texture);
     }
@@ -208,7 +220,7 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
 
             return Optional.of(new Prepared(model, createRenderType(texture)));
         } catch (Exception e) {
-            // Cached as empty so a broken model logs once instead of every frame
+            // Cached as empty so it only logs once
             HytaleModelLoader.LOGGER.error("Failed to prepare model {} with texture {}: {}",
                     modelLocation, texture, e.getMessage());
             return Optional.empty();
@@ -216,7 +228,7 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
     }
 
     /**
-     * Reads a PNGs pixel size from its header without decoding the image
+     * Reads a PNG's size from its header without decoding the image
      *
      * @param texture the full resource path of the PNG
      * @return {width, height}
@@ -226,7 +238,7 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
         Resource resource = Minecraft.getInstance().getResourceManager().getResource(texture)
                 .orElseThrow(() -> new FileNotFoundException("Missing texture " + texture));
         try (DataInputStream in = new DataInputStream(resource.open())) {
-            // 8 byte signature + 4 byte chunk length + 4 byte "IHDR", then width and height as big-endian ints
+            // Skip the signature and chunk header, then read width and height
             in.skipNBytes(16);
             return new int[]{in.readInt(), in.readInt()};
         }

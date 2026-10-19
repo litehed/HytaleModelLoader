@@ -8,9 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * An EntityModel with no parts. LivingEntityRenderer requires a model, but Blocky geometry
- * cannot be expressed as ModelPart cubes, so it is drawn by {@link HytaleEntityRenderer} instead
- * and this model is never rendered.
+ * An empty model. Vanilla needs one, but Blocky models are drawn by {@link HytaleEntityRenderer}
  *
  * @param <S> the render state type
  */

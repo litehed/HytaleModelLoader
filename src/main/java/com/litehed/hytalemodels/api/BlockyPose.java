@@ -1,15 +1,19 @@
 package com.litehed.hytalemodels.api;
 
+import com.litehed.hytalemodels.blockymodel.TransformCalculator;
 import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import org.jspecify.annotations.Nullable;
 
-import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Transforms layered on a model's rest pose for one frame
+ * Everything added stacks, so animation files and code can be mixed
+ */
 public final class BlockyPose {
-    private static final float UNITS_PER_BLOCK = 32.0f;
 
     private final Map<String, NodeTransform> transforms = new HashMap<>();
 
@@ -48,13 +52,16 @@ public final class BlockyPose {
      * @return this pose
      */
     public BlockyPose translate(String node, float x, float y, float z) {
-        return add(node, NodeTransform.translation(new Vector3f(x, y, z).div(UNITS_PER_BLOCK)));
+        return add(node, NodeTransform.translation(new Vector3f(x, y, z).div(TransformCalculator.UNITS_PER_BLOCK)));
     }
 
     /**
      * Multiplies the node's shape size. Unlike rotation and translation this does not affect children.
      *
      * @param node the node name or id
+     * @param x    scale on X
+     * @param y    scale on Y
+     * @param z    scale on Z
      * @return this pose
      */
     public BlockyPose scale(String node, float x, float y, float z) {
@@ -143,10 +150,6 @@ public final class BlockyPose {
             return byId;
         }
         return byId == null ? byName : byName.merge(byId);
-    }
-
-    public boolean isEmpty() {
-        return transforms.isEmpty();
     }
 
     private static NodeTransform weighted(NodeTransform t, float weight) {

@@ -5,13 +5,13 @@ import net.minecraft.core.Direction;
 
 public class HytaleBlockEntityRenderState extends BlockEntityRenderState {
     public String modelName;
-    public int animationTick; // Animation tick
-    public float partialTick; // Partial tick for smooth animation
+    public int animationTick;
+    public float partialTick;
     /**
-     * The smoothed animation time in ticks, pre-multiplied by 4 to match blockyanim internal
-     * animation speed expectations. Computed as {@code (animationTick + partialTick) * 4}.
-     * Pass this value directly to {@code BlockyAnimationPlayer} when sampling keyframes.
+     * Animation time in blockyanim units, (animationTick + partialTick) * 4
+     * Pass it to BlockyAnimationPlayer when sampling keyframes
      */
     public float ageInTicks;
-    public Direction facing; // Block facing direction for rotation
+    // Null if the block has no facing
+    public Direction facing;
 }
