@@ -5,174 +5,60 @@ import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.Direction;
 import net.neoforged.neoforge.client.model.pipeline.QuadBakingVertexConsumer;
-import org.apache.commons.lang3.tuple.Pair;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class QuadBuilder {
 
-    private static final int TINT_INDEX_NONE = -1;                          // No tinting -1
-    private static final float[] COLOR_WHITE = {1.0f, 1.0f, 1.0f, 1.0f};
+    private static final int TINT_INDEX_NONE = -1;
 
-    public static final boolean DEBUG_BORDERS = false;
-    private static final float BORDER_THICKNESS = 0.002f;
+    private QuadBuilder() {
+    }
 
     /**
-     * Create a single quad for a given face
+     * Creates the baked quad for one face
      *
-     * @param face      the Direction of the face
-     * @param min       the minimum coordinates of the face
-     * @param max       the maximum coordinates of the face
-     * @param sprite    the TextureAtlasSprite to use for the quad
+     * @param face      the direction of the face
+     * @param min       the minimum corner of the shape
+     * @param max       the maximum corner of the shape
+     * @param sprite    the sprite the quad uses
      * @param texLayout the texture layout for this face
-     * @param size      the size of the block in each axis (x, y, z)
+     * @param size      the original size of the shape, used for UVs
      * @param transform the transformation to apply to the quad
-     * @return a Pair containing the BakedQuad and its cull face Direction
+     * @param reversed  true to wind the face the other way, for negative stretch and back faces
+     * @return the baked quad
      */
-    public static Pair<BakedQuad, Direction> createQuad(
+    public static BakedQuad createQuad(
             Direction face,
             Vector3f min,
             Vector3f max,
             TextureAtlasSprite sprite,
             BlockyModelGeometry.FaceTextureLayout texLayout,
             Vector3f size,
-            Transformation transform) {
+            Transformation transform,
+            boolean reversed) {
 
-        QuadBakingVertexConsumer baker = setupQuadBaker(face, sprite);
-
-        float[][] uvCoords = calculateUVCoordinates(face, texLayout, size, sprite);
-        Vector3f[] vertices = getFaceVertices(face, min, max);
-
-        bakeVertices(baker, vertices, uvCoords, face, transform);
-
-        Direction cullFace = calculateCullFace(face, min, max);
-        return Pair.of(baker.bakeQuad(), cullFace);
-    }
-
-
-    /**
-     * Create a reversed quad for backfaces
-     *
-     * @param face      the Direction of the face
-     * @param min       the minimum coordinates of the face
-     * @param max       the maximum coordinates of the face
-     * @param sprite    the TextureAtlasSprite to use for the quad
-     * @param texLayout the texture layout for this face
-     * @param size      the size of the block in each axis (x, y, z)
-     * @param transform the transformation to apply to the quad
-     * @return a Pair containing the BakedQuad and null cull face
-     */
-    public static Pair<BakedQuad, Direction> createReversedQuad(
-            Direction face,
-            Vector3f min,
-            Vector3f max,
-            TextureAtlasSprite sprite,
-            BlockyModelGeometry.FaceTextureLayout texLayout,
-            Vector3f size,
-            Transformation transform) {
-
-        QuadBakingVertexConsumer baker = setupQuadBaker(face, sprite);
-
-        float[][] uvCoords = calculateUVCoordinates(face, texLayout, size, sprite);
-        Vector3f[] vertices = getFaceVertices(face, min, max);
-
-        // Bake in reverse order with flipped normals
-        bakeVerticesReversed(baker, vertices, uvCoords, face, transform);
-        // No cull, it breaks the backface
-        return Pair.of(baker.bakeQuad(), null);
-    }
-
-    /**
-     * Set up the quad baker with common parameters
-     *
-     * @param face   the Direction of the face
-     * @param sprite the TextureAtlasSprite to use for the quad
-     * @return a QuadBakingVertexConsumer instance
-     */
-    private static QuadBakingVertexConsumer setupQuadBaker(Direction face, TextureAtlasSprite sprite) {
         QuadBakingVertexConsumer baker = new QuadBakingVertexConsumer();
         baker.setSprite(sprite);
         baker.setDirection(face);
         baker.setTintIndex(TINT_INDEX_NONE);
         baker.setShade(true);
-        return baker;
-    }
 
-    /**
-     * Create border quads for debugging (4 thin strips around the edge)
-     *
-     * @param face      the Direction of the face
-     * @param min       the minimum coordinates of the face
-     * @param max       the maximum coordinates of the face
-     * @param sprite    the TextureAtlasSprite to use for the border quads
-     * @param transform the transformation to apply to each border quad
-     * @return a list of BakedQuad instances representing the border strips
-     */
-    public static List<BakedQuad> createBorderQuads(
-            Direction face,
-            Vector3f min,
-            Vector3f max,
-            TextureAtlasSprite sprite,
-            Transformation transform) {
-
-        List<BakedQuad> borderQuads = new ArrayList<>();
+        float[][] uvCoords = calculateUVCoordinates(face, texLayout, size, sprite);
         Vector3f[] vertices = getFaceVertices(face, min, max);
 
-        float[] color = getDebugColor(face);
-        float[][] dummyUVs = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
-        float borderWidth = 0.05f;
-
-        for (int i = 0; i < 4; i++) {
-            QuadBakingVertexConsumer baker = setupQuadBaker(face, sprite);
-            Vector3f[] borderVerts = createBorderStrip(vertices, i, borderWidth);
-            bakeBorderVertices(baker, borderVerts, dummyUVs, face, transform, color);
-            borderQuads.add(baker.bakeQuad());
-        }
-
-        return borderQuads;
+        bakeVertices(baker, vertices, uvCoords, face, transform, reversed);
+        return baker.bakeQuad();
     }
 
     /**
-     * Create a border strip along one edge of the quad
+     * Calculates the UV coordinates of a face inside an atlas sprite
      *
-     * @param vertices Original quad vertices
-     * @param edge     Edge index (0=bottom, 1=right, 2=top, 3=left)
-     * @param width    Width of the border strip
-     * @return Vertices of the border strip quad
-     */
-    private static Vector3f[] createBorderStrip(Vector3f[] vertices, int edge, float width) {
-        Vector3f[] strip = new Vector3f[4];
-
-        int v1 = (edge + 1) % 4;
-
-        Vector3f start = new Vector3f(vertices[edge]);
-        Vector3f end = new Vector3f(vertices[v1]);
-
-        // Calculate inward direction
-        Vector3f center = new Vector3f(vertices[0]).add(vertices[1]).add(vertices[2]).add(vertices[3]).mul(0.25f);
-        Vector3f toCenter = new Vector3f(start).add(end).mul(0.5f);
-        toCenter.sub(center);
-        toCenter.normalize().mul(width);
-
-        strip[0] = new Vector3f(start);
-        strip[1] = new Vector3f(end);
-        strip[2] = new Vector3f(end).add(toCenter);
-        strip[3] = new Vector3f(start).add(toCenter);
-
-        return strip;
-    }
-
-    /**
-     * Calculate UV coordinates for a face
-     *
-     * @param face   the Direction of the face
+     * @param face   the direction of the face
      * @param layout the texture layout for the face
-     * @param size   the size of the face
-     * @param sprite the TextureAtlasSprite to use for UV calculation
-     * @return an array of UV coordinates for each vertex of the face
+     * @param size   the original size of the shape
+     * @param sprite the sprite to map into
+     * @return the UV coordinates of the 4 vertices
      */
     public static float[][] calculateUVCoordinates(Direction face, BlockyModelGeometry.FaceTextureLayout layout,
                                                    Vector3f size, TextureAtlasSprite sprite) {
@@ -180,13 +66,13 @@ public class QuadBuilder {
     }
 
     /**
-     * Calculate UV coordinates for a face against any texture region (an atlas sprite or a whole standalone texture)
+     * Calculates the UV coordinates of a face inside any texture region
      *
-     * @param face   the Direction of the face
+     * @param face   the direction of the face
      * @param layout the texture layout for the face
-     * @param size   the size of the face
-     * @param region the texture region to map pixel coordinates into
-     * @return an array of UV coordinates for each vertex of the face
+     * @param size   the original size of the shape
+     * @param region the region to map into, such as a whole standalone texture
+     * @return the UV coordinates of the 4 vertices
      */
     public static float[][] calculateUVCoordinates(Direction face, BlockyModelGeometry.FaceTextureLayout layout,
                                                    Vector3f size, UVRegion region) {
@@ -195,13 +81,6 @@ public class QuadBuilder {
         return transformUVCoordinates(bounds, layout, uvSize, region);
     }
 
-    /**
-     * Get UV size based on face orientation
-     *
-     * @param face the Direction of the face
-     * @param size the size of the face
-     * @return the UVSize for the given face and rotation
-     */
     private static UVSize getUVSizeForFace(Direction face, Vector3f size) {
         return switch (face) {
             case UP, DOWN -> new UVSize(size.x, size.z);
@@ -210,14 +89,6 @@ public class QuadBuilder {
         };
     }
 
-    /**
-     * Calculate UV bounds using layout and sprite
-     *
-     * @param layout the texture layout for the face
-     * @param uvSize the UV size for the face
-     * @param region the texture region to use for UV calculation
-     * @return the UV bounds for the given layout and sprite
-     */
     private static UVBounds calculateUVBounds(BlockyModelGeometry.FaceTextureLayout layout, UVSize uvSize,
                                               UVRegion region) {
         int textureWidth = region.width();
@@ -239,7 +110,7 @@ public class QuadBuilder {
             vMax = temp;
         }
 
-        // Map to sprite atlas
+        // Map into the texture region
         uMin = region.u0() + (region.u1() - region.u0()) * uMin;
         vMin = region.v0() + (region.v1() - region.v0()) * vMin;
         uMax = region.u0() + (region.u1() - region.u0()) * uMax;
@@ -247,15 +118,6 @@ public class QuadBuilder {
         return new UVBounds(uMin, vMin, uMax, vMax);
     }
 
-    /**
-     * Transform UV coordinates with rotation and mirroring
-     *
-     * @param bounds the UV bounds
-     * @param layout the texture layout containing rotation and mirror flags
-     * @param uvSize the size of the UV region
-     * @param region the texture region for coordinate conversion
-     * @return transformed UV coordinates for all 4 vertices
-     */
     private static float[][] transformUVCoordinates(
             UVBounds bounds,
             BlockyModelGeometry.FaceTextureLayout layout,
@@ -322,17 +184,6 @@ public class QuadBuilder {
         return uvs;
     }
 
-
-    /**
-     * Rotate a point (x, y) around a pivot (pivotX, pivotY) by a given angle in degrees
-     *
-     * @param x      the x-coordinate of the point to rotate
-     * @param y      the y-coordinate of the point to rotate
-     * @param pivotX the x-coordinate of the pivot point
-     * @param pivotY the y-coordinate of the pivot point
-     * @param angle  the rotation angle in degrees (must be one of 0, 90, 180, 270)
-     * @return the new coordinates of the point after rotation as a float array [newX, newY]
-     */
     private static float[] rotatePointClockwise(float x, float y, float pivotX, float pivotY, int angle) {
         float dx = x - pivotX;
         float dy = y - pivotY;
@@ -360,8 +211,6 @@ public class QuadBuilder {
         return new float[]{pivotX + newDx, pivotY + newDy};
     }
 
-
-    // Helper funcs to get u and v normalized to proper coords
     private static float normalizeU(float pixelU, UVRegion region, int textureWidth) {
         float relativeU = pixelU / textureWidth;
         return region.u0() + (region.u1() - region.u0()) * relativeU;
@@ -373,12 +222,12 @@ public class QuadBuilder {
     }
 
     /**
-     * Get the 4 vertices for a given face
+     * Gets the 4 vertices of a face
      *
-     * @param face the Direction of the face
-     * @param min  the minimum coordinates of the face
-     * @param max  the maximum coordinates of the face
-     * @return an array of 4 Vector3f vertices
+     * @param face the direction of the face
+     * @param min  the minimum corner of the shape
+     * @param max  the maximum corner of the shape
+     * @return the 4 vertices
      */
     public static Vector3f[] getFaceVertices(Direction face, Vector3f min, Vector3f max) {
         float x0 = min.x, y0 = min.y, z0 = min.z;
@@ -412,21 +261,14 @@ public class QuadBuilder {
         };
     }
 
-    /**
-     * Bake vertices for the quad
-     *
-     * @param baker     the QuadBakingVertexConsumer
-     * @param vertices  the vertices of the quad
-     * @param uvCoords  the UV coordinates for the quad
-     * @param face      the Direction of the face
-     * @param transform the transformation to apply
-     */
-    private static void bakeVertices(QuadBakingVertexConsumer baker, Vector3f[] vertices,
-                                     float[][] uvCoords, Direction face, Transformation transform) {
-        Vector3f normal = new Vector3f(face.getStepX(), face.getStepY(), face.getStepZ());
+    private static void bakeVertices(QuadBakingVertexConsumer baker, Vector3f[] vertices, float[][] uvCoords,
+                                     Direction face, Transformation transform, boolean reversed) {
+        int sign = reversed ? -1 : 1;
+        Vector3f normal = new Vector3f(face.getStepX() * sign, face.getStepY() * sign, face.getStepZ() * sign);
         boolean hasTransform = !transform.isIdentity();
 
-        for (int i = 0; i < 4; i++) {
+        for (int n = 0; n < 4; n++) {
+            int i = reversed ? 3 - n : n;
             Vector4f pos = new Vector4f(vertices[i].x, vertices[i].y, vertices[i].z, 1.0f);
             Vector3f norm = new Vector3f(normal);
 
@@ -436,111 +278,12 @@ public class QuadBuilder {
             }
 
             baker.addVertex(pos.x(), pos.y(), pos.z());
-            baker.setColor(COLOR_WHITE[0], COLOR_WHITE[1], COLOR_WHITE[2], COLOR_WHITE[3]);
+            baker.setColor(1.0f, 1.0f, 1.0f, 1.0f);
             baker.setUv(uvCoords[i][0], uvCoords[i][1]);
             baker.setNormal(norm.x(), norm.y(), norm.z());
         }
     }
 
-    /**
-     * Bake vertices in reverse order for backfaces
-     *
-     * @param baker     the QuadBakingVertexConsumer
-     * @param vertices  the vertices of the quad
-     * @param uvCoords  the UV coordinates for the quad
-     * @param face      the Direction of the face
-     * @param transform the transformation to apply
-     */
-    private static void bakeVerticesReversed(QuadBakingVertexConsumer baker, Vector3f[] vertices,
-                                             float[][] uvCoords, Direction face, Transformation transform) {
-        Vector3f normal = new Vector3f(-face.getStepX(), -face.getStepY(), -face.getStepZ());
-        boolean hasTransform = !transform.isIdentity();
-
-        // Reverse order
-        for (int i = 3; i >= 0; i--) {
-            Vector4f pos = new Vector4f(vertices[i].x, vertices[i].y, vertices[i].z, 1.0f);
-            Vector3f norm = new Vector3f(normal);
-
-            if (hasTransform) {
-                transform.transformPosition(pos);
-                transform.transformNormal(norm);
-            }
-
-            baker.addVertex(pos.x(), pos.y(), pos.z());
-            baker.setColor(COLOR_WHITE[0], COLOR_WHITE[1], COLOR_WHITE[2], COLOR_WHITE[3]);
-            baker.setUv(uvCoords[i][0], uvCoords[i][1]);
-            baker.setNormal(norm.x(), norm.y(), norm.z());
-        }
-    }
-
-    /**
-     * Bake border vertices for debugging
-     *
-     * @param baker     the QuadBakingVertexConsumer
-     * @param vertices  the vertices of the border strip
-     * @param uvCoords  the UV coordinates for the border strip
-     * @param face      the Direction of the face
-     * @param transform the transformation to apply
-     * @param color     the color to use for debugging
-     */
-    private static void bakeBorderVertices(QuadBakingVertexConsumer baker, Vector3f[] vertices,
-                                           float[][] uvCoords, Direction face, Transformation transform, float[] color) {
-        Vector3f normal = new Vector3f(face.getStepX(), face.getStepY(), face.getStepZ());
-        boolean hasTransform = !transform.isIdentity();
-
-        // Offset vertices slightly outward to prevent z-fighting
-        Vector3f offset = new Vector3f(normal).mul(BORDER_THICKNESS);
-
-        for (int i = 0; i < 4; i++) {
-            Vector3f offsetVert = new Vector3f(vertices[i]).add(offset);
-            Vector4f pos = new Vector4f(offsetVert.x, offsetVert.y, offsetVert.z, 1.0f);
-            Vector3f norm = new Vector3f(normal);
-
-            if (hasTransform) {
-                transform.transformPosition(pos);
-                transform.transformNormal(norm);
-            }
-
-            baker.addVertex(pos.x(), pos.y(), pos.z());
-            baker.setColor(color[0], color[1], color[2], color[3]);
-            baker.setUv(uvCoords[i][0], uvCoords[i][1]);
-            baker.setNormal(norm.x(), norm.y(), norm.z());
-        }
-    }
-
-    /**
-     * Get debug color for vertex based on index and face
-     * Creates a colored border effect to visualize quad boundaries
-     *
-     * @param face the Direction of the face
-     * @return the RGBA color array
-     */
-    private static float[] getDebugColor(Direction face) {
-        // Assign different colors to different faces
-        return switch (face) {
-            case UP -> new float[]{1.0f, 0.0f, 0.0f, 1.0f};      // Red
-            case DOWN -> new float[]{0.0f, 1.0f, 0.0f, 1.0f};    // Green
-            case NORTH -> new float[]{0.0f, 0.0f, 1.0f, 1.0f};   // Blue
-            case SOUTH -> new float[]{1.0f, 1.0f, 0.0f, 1.0f};   // Yellow
-            case WEST -> new float[]{1.0f, 0.0f, 1.0f, 1.0f};    // Magenta
-            case EAST -> new float[]{0.0f, 1.0f, 1.0f, 1.0f};    // Cyan
-        };
-    }
-
-    /**
-     * Calculate cull face based on quad orientation
-     *
-     * @param face the Direction of the face
-     * @param min  the minimum coordinates of the face
-     * @param max  the maximum coordinates of the face
-     * @return the cull face Direction, or null if none
-     */
-    private static Direction calculateCullFace(Direction face, Vector3f min, Vector3f max) {
-        // Currently disabled
-        return null;
-    }
-
-    // Helper records for clean data passing
     private record UVSize(float u, float v) {
     }
 
