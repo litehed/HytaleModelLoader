@@ -1,26 +1,35 @@
 package com.litehed.hytalemodels.blockymodel;
 
-import com.google.common.base.Charsets;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
-// Tokenizer for reading BlockyModel JSON files. It reads the entire file into memory and parses it as a JsonObject.
+// Reads a Blocky JSON file into a JsonObject
 public class BlockyTokenizer implements AutoCloseable {
-    private final BufferedReader lineReader;
+    private final BufferedReader reader;
     private final JsonObject root;
 
     /**
-     * Creates a new BlockyTokenizer that reads from the given InputStream
+     * Reads the whole file. The stream is closed by {@link #close()}, or here if the file is not valid JSON
      *
-     * @param inputStream The InputStream to read from
+     * @param inputStream the file to read
      */
     public BlockyTokenizer(InputStream inputStream) {
-        this.lineReader = new BufferedReader(new InputStreamReader(inputStream, Charsets.UTF_8));
-        this.root = JsonParser.parseReader(lineReader).getAsJsonObject();
+        this.reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+        try {
+            this.root = JsonParser.parseReader(reader).getAsJsonObject();
+        } catch (RuntimeException e) {
+            try {
+                reader.close();
+            } catch (IOException ignored) {
+            }
+            throw e;
+        }
     }
 
     public JsonObject getRoot() {
@@ -28,7 +37,7 @@ public class BlockyTokenizer implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
-        this.lineReader.close();
+    public void close() throws IOException {
+        reader.close();
     }
 }
