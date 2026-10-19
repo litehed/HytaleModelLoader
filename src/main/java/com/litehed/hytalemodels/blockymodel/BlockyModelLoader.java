@@ -1,6 +1,5 @@
 package com.litehed.hytalemodels.blockymodel;
 
-import com.google.common.collect.Maps;
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -15,59 +14,53 @@ import net.neoforged.neoforge.client.model.UnbakedModelLoader;
 
 import java.io.FileNotFoundException;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class BlockyModelLoader implements UnbakedModelLoader<BlockyModel>, ResourceManagerReloadListener {
 
     public static final BlockyModelLoader INSTANCE = new BlockyModelLoader();
     public static final Identifier ID = Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "blockymodel_loader");
-    private final Map<BlockyModelGeometry.Settings, BlockyModelGeometry> geometryCache = Maps.newConcurrentMap();
 
-    // Important for cleaning up during resource reloads
+    private final Map<BlockyModelGeometry.Settings, BlockyModelGeometry> geometryCache = new ConcurrentHashMap<>();
+
     @Override
     public void onResourceManagerReload(ResourceManager resourceManager) {
         geometryCache.clear();
     }
 
-    /**
-     * Reads a BlockyModel file and returns a BlockyModel instance
-     *
-     * @param jsonObject                 the JsonObject representing the BlockyModel
-     * @param jsonDeserializationContext the context for deserializing JSON
-     * @return a BlockyModel instance
-     * @throws JsonParseException if the model is malformed or missing required fields
-     */
     @Override
-    public BlockyModel read(JsonObject jsonObject, JsonDeserializationContext jsonDeserializationContext) throws JsonParseException {
-        HytaleModelLoader.LOGGER.debug("[BlockyModelLoader] Reading model from file: {}", jsonObject);
-
+    public BlockyModel read(JsonObject jsonObject, JsonDeserializationContext context) throws JsonParseException {
         if (!jsonObject.has("model")) {
             throw new JsonParseException("BlockyModel Loader requires a 'model' key that points to a valid BlockyModel file.");
         }
 
         String modelLocation = jsonObject.get("model").getAsString();
-        StandardModelParameters parameters = StandardModelParameters.parse(jsonObject, jsonDeserializationContext);
+        StandardModelParameters parameters = StandardModelParameters.parse(jsonObject, context);
 
-        var geometry = loadGeometry(new BlockyModelGeometry.Settings(Identifier.parse(modelLocation)));
+        BlockyModelGeometry geometry = loadGeometry(new BlockyModelGeometry.Settings(Identifier.parse(modelLocation)));
         return new BlockyModel(parameters, geometry);
     }
 
     /**
-     * Loads and parses a BlockyModel file from the given location
+     * Loads a model file. Results are cached until the next resource reload
      *
-     * @param settings the settings containing the model location
-     * @return the parsed BlockyModelGeometry
+     * @param settings the settings holding the model location
+     * @return the parsed geometry
      */
     public BlockyModelGeometry loadGeometry(BlockyModelGeometry.Settings settings) {
-        return geometryCache.computeIfAbsent(settings, (data) -> {
-            ResourceManager manager = Minecraft.getInstance().getResourceManager();
-            Resource resource = manager.getResource(settings.modelLocation()).orElseThrow();
+        return geometryCache.computeIfAbsent(settings, this::readGeometry);
+    }
+
+    private BlockyModelGeometry readGeometry(BlockyModelGeometry.Settings settings) {
+        Identifier location = settings.modelLocation();
+        try {
+            Resource resource = Minecraft.getInstance().getResourceManager().getResource(location)
+                    .orElseThrow(() -> new FileNotFoundException("File not found"));
             try (BlockyTokenizer tokenizer = new BlockyTokenizer(resource.open())) {
-                return BlockyModelGeometry.parse(tokenizer, data);
-            } catch (FileNotFoundException e) {
-                throw new RuntimeException("Could not find BlockyModel file", e);
-            } catch (Exception e) {
-                throw new RuntimeException("Could not read BlockyModel file", e);
+                return BlockyModelGeometry.parse(tokenizer);
             }
-        });
+        } catch (Exception e) {
+            throw new RuntimeException("Could not read BlockyModel " + location + ": " + e.getMessage(), e);
+        }
     }
 }

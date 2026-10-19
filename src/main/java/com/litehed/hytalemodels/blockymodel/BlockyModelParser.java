@@ -1,6 +1,5 @@
 package com.litehed.hytalemodels.blockymodel;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -16,19 +15,16 @@ import java.util.Map;
 
 import static com.litehed.hytalemodels.blockymodel.ParserUtil.*;
 
-public class BlockyModelParser {
+public final class BlockyModelParser {
 
     private static final float DEFAULT_SIZE = 16.0f;
-    private static final float DEFAULT_STRETCH = 1.0f;
-    private static final Vector3f DEFAULT_POSITION = new Vector3f(0, 0, 0);
-    private static final Quaternionf DEFAULT_ORIENTATION = new Quaternionf();
 
     /**
-     * Parse the nodes from the root JsonObject
+     * Parses every node of a model file, children included
      *
-     * @param root the root JsonObject of the BlockyModel
-     * @return a list of parsed BlockyNodes
-     * @throws JsonParseException if required fields are missing or invalid
+     * @param root the root of the model file
+     * @return all nodes, with each parent before its children
+     * @throws JsonParseException if the file has no nodes or a node is missing a name or id
      */
     public static List<BlockyModelGeometry.BlockyNode> parseNodes(JsonObject root) throws JsonParseException {
         if (!root.has("nodes")) {
@@ -36,104 +32,59 @@ public class BlockyModelParser {
         }
 
         List<BlockyModelGeometry.BlockyNode> nodes = new ArrayList<>();
-        JsonArray nodesArray = root.getAsJsonArray("nodes");
-
-        for (JsonElement nodeElement : nodesArray) {
+        for (JsonElement nodeElement : root.getAsJsonArray("nodes")) {
             parseNode(nodeElement.getAsJsonObject(), null, nodes);
         }
-
         return nodes;
     }
 
-    /**
-     * Parse a single node and its children recursively
-     *
-     * @param nodeObj  the JsonObject representing the node
-     * @param parent   the parent BlockyNode, or null if root
-     * @param allNodes the list to add parsed nodes to
-     * @throws JsonParseException if required fields are missing or invalid
-     */
-    private static void parseNode(JsonObject nodeObj, BlockyModelGeometry.BlockyNode parent, List<BlockyModelGeometry.BlockyNode> allNodes) {
-        validateRequiredFields(nodeObj);
-
-        BlockyModelGeometry.BlockyNode node = new BlockyModelGeometry.BlockyNode(
-                parseString(nodeObj, "id"),
-                parseString(nodeObj, "name"),
-                parsePosition(nodeObj),
-                parseOrientation(nodeObj),
-                parseShape(nodeObj),
-                parent
-        );
-
-        allNodes.add(node);
-
-        if (parent != null) {
-            parent.addChild(node);
-        }
-
-        // Parse children recursively
-        if (nodeObj.has("children")) {
-            JsonArray children = nodeObj.getAsJsonArray("children");
-            for (JsonElement childElement : children) {
-                parseNode(childElement.getAsJsonObject(), node, allNodes);
-            }
-        }
-    }
-
-    /**
-     * Validate that required fields are present in the node JsonObject
-     *
-     * @param nodeObj the JsonObject representing the node
-     * @throws JsonParseException if required fields are missing
-     */
-    private static void validateRequiredFields(JsonObject nodeObj) throws JsonParseException {
+    private static void parseNode(JsonObject nodeObj, BlockyModelGeometry.BlockyNode parent,
+                                  List<BlockyModelGeometry.BlockyNode> allNodes) {
         if (!nodeObj.has("name")) {
             throw new JsonParseException("Node missing required field: 'name'");
         }
         if (!nodeObj.has("id")) {
             throw new JsonParseException("Node missing required field: 'id'");
         }
-    }
 
-    /**
-     * Parse a string field from a JsonObject
-     *
-     * @param obj the JsonObject
-     * @param key the key of the string field
-     * @return the string value
-     */
-    private static String parseString(JsonObject obj, String key) {
-        return obj.get(key).getAsString();
-    }
+        BlockyModelGeometry.BlockyNode node = new BlockyModelGeometry.BlockyNode(
+                nodeObj.get("id").getAsString(),
+                nodeObj.get("name").getAsString(),
+                parseVector(nodeObj, "position", 0, 0, 0),
+                parseOrientation(nodeObj),
+                parseShape(nodeObj),
+                parent
+        );
 
-    /**
-     * Parse the position vector from a node JsonObject
-     *
-     * @param nodeObj the JsonObject representing the node
-     * @return the parsed position vector
-     */
-    private static Vector3f parsePosition(JsonObject nodeObj) {
-        if (!nodeObj.has("position")) {
-            return new Vector3f(DEFAULT_POSITION);
+        allNodes.add(node);
+        if (parent != null) {
+            parent.addChild(node);
         }
 
-        JsonObject pos = nodeObj.getAsJsonObject("position");
+        if (nodeObj.has("children")) {
+            for (JsonElement childElement : nodeObj.getAsJsonArray("children")) {
+                parseNode(childElement.getAsJsonObject(), node, allNodes);
+            }
+        }
+    }
+
+    // Reads an object with x, y and z, using the given values for any that are missing
+    private static Vector3f parseVector(JsonObject parent, String key, float defaultX, float defaultY, float defaultZ) {
+        if (!parent.has(key)) {
+            return new Vector3f(defaultX, defaultY, defaultZ);
+        }
+
+        JsonObject obj = parent.getAsJsonObject(key);
         return new Vector3f(
-                getFloatOrDefault(pos, "x", 0),
-                getFloatOrDefault(pos, "y", 0),
-                getFloatOrDefault(pos, "z", 0)
+                getFloatOrDefault(obj, "x", defaultX),
+                getFloatOrDefault(obj, "y", defaultY),
+                getFloatOrDefault(obj, "z", defaultZ)
         );
     }
 
-    /**
-     * Parse the orientation quaternion from a node JsonObject
-     *
-     * @param nodeObj the JsonObject representing the node
-     * @return the parsed orientation quaternion
-     */
     private static Quaternionf parseOrientation(JsonObject nodeObj) {
         if (!nodeObj.has("orientation")) {
-            return new Quaternionf(DEFAULT_ORIENTATION);
+            return new Quaternionf();
         }
 
         JsonObject orient = nodeObj.getAsJsonObject("orientation");
@@ -145,12 +96,6 @@ public class BlockyModelParser {
         );
     }
 
-    /**
-     * Parse the shape from a node
-     *
-     * @param nodeObj the JsonObject representing the node
-     * @return the parsed BlockyShape, or null if none
-     */
     private static BlockyModelGeometry.BlockyShape parseShape(JsonObject nodeObj) {
         if (!nodeObj.has("shape")) {
             return null;
@@ -163,24 +108,17 @@ public class BlockyModelParser {
             return BlockyModelGeometry.BlockyShape.invisible();
         }
 
-        Direction frontFace = parseFrontFace(shapeObj);
-
         return new BlockyModelGeometry.BlockyShape(
                 visible,
                 getBooleanOrDefault(shapeObj, "doubleSided", false),
-                parseOffset(shapeObj),
-                parseStretch(shapeObj),
+                parseVector(shapeObj, "offset", 0, 0, 0),
+                parseVector(shapeObj, "stretch", 1, 1, 1),
                 parseSize(shapeObj),
-                parseTextureLayout(shapeObj, frontFace)
+                parseTextureLayout(shapeObj, parseFrontFace(shapeObj))
         );
     }
 
-    /**
-     * Determine which face the front texture layout applies to.
-     *
-     * @param shapeObj the JsonObject representing the shape
-     * @return the direction front maps to
-     */
+    // Boxes have their front on south, quads on the side their normal points to
     private static Direction parseFrontFace(JsonObject shapeObj) {
         String type = shapeObj.has("type") ? shapeObj.get("type").getAsString() : "box";
         if (!type.equalsIgnoreCase("quad")) {
@@ -205,76 +143,17 @@ public class BlockyModelParser {
         };
     }
 
-    /**
-     * Parse the offset vector from a shape JsonObject
-     *
-     * @param shapeObj the JsonObject representing the shape
-     * @return the parsed offset vector
-     */
-    private static Vector3f parseOffset(JsonObject shapeObj) {
-        if (!shapeObj.has("offset")) {
-            return new Vector3f(0, 0, 0);
-        }
-
-        JsonObject offset = shapeObj.getAsJsonObject("offset");
-        return new Vector3f(
-                getFloatOrDefault(offset, "x", 0),
-                getFloatOrDefault(offset, "y", 0),
-                getFloatOrDefault(offset, "z", 0)
-        );
-    }
-
-    /**
-     * Parse the stretch vector from a shape JsonObject
-     *
-     * @param shapeObj the JsonObject representing the shape
-     * @return the parsed stretch vector
-     */
-    private static Vector3f parseStretch(JsonObject shapeObj) {
-        if (!shapeObj.has("stretch")) {
-            return new Vector3f(1, 1, 1);
-        }
-
-        JsonObject stretch = shapeObj.getAsJsonObject("stretch");
-        return new Vector3f(
-                getFloatOrDefault(stretch, "x", DEFAULT_STRETCH),
-                getFloatOrDefault(stretch, "y", DEFAULT_STRETCH),
-                getFloatOrDefault(stretch, "z", DEFAULT_STRETCH)
-        );
-    }
-
-    /**
-     * Parse the size vector from a shape JsonObject
-     *
-     * @param shapeObj the JsonObject representing the shape
-     * @return the parsed size vector
-     */
+    // Quads have no depth, so a size that is given without z gets 0
     private static Vector3f parseSize(JsonObject shapeObj) {
-        if (!shapeObj.has("settings")) {
+        JsonObject settings = shapeObj.has("settings") ? shapeObj.getAsJsonObject("settings") : null;
+        if (settings == null || !settings.has("size")) {
             return new Vector3f(DEFAULT_SIZE, DEFAULT_SIZE, DEFAULT_SIZE);
         }
-
-        JsonObject settings = shapeObj.getAsJsonObject("settings");
-        if (!settings.has("size")) {
-            return new Vector3f(DEFAULT_SIZE, DEFAULT_SIZE, DEFAULT_SIZE);
-        }
-
-        JsonObject size = settings.getAsJsonObject("size");
-        return new Vector3f(
-                getFloatOrDefault(size, "x", DEFAULT_SIZE),
-                getFloatOrDefault(size, "y", DEFAULT_SIZE),
-                getFloatOrDefault(size, "z", 0)
-        );
+        return parseVector(settings, "size", DEFAULT_SIZE, DEFAULT_SIZE, 0);
     }
 
-    /**
-     * Parse the texture layout from a shape JsonObject
-     *
-     * @param shapeObj  the JsonObject representing the shape
-     * @param frontFace the direction the front"layout maps to
-     * @return the parsed texture layout map
-     */
-    private static Map<Direction, BlockyModelGeometry.FaceTextureLayout> parseTextureLayout(JsonObject shapeObj, Direction frontFace) {
+    private static Map<Direction, BlockyModelGeometry.FaceTextureLayout> parseTextureLayout(JsonObject shapeObj,
+                                                                                            Direction frontFace) {
         Map<Direction, BlockyModelGeometry.FaceTextureLayout> layoutMap = new EnumMap<>(Direction.class);
 
         if (!shapeObj.has("textureLayout")) {
@@ -292,16 +171,9 @@ public class BlockyModelParser {
         return layoutMap;
     }
 
-    /**
-     * Parse a single face texture layout from a JsonObject
-     *
-     * @param faceLayout the JsonObject representing the face layout
-     * @return the parsed FaceTextureLayout
-     */
     private static BlockyModelGeometry.FaceTextureLayout parseFaceLayout(JsonObject faceLayout) {
         int offsetX = 0, offsetY = 0;
         boolean mirrorX = false, mirrorY = false;
-        int angle = 0;
 
         if (faceLayout.has("offset")) {
             JsonObject offset = faceLayout.getAsJsonObject("offset");
@@ -315,21 +187,10 @@ public class BlockyModelParser {
             mirrorY = getBooleanOrDefault(mirror, "y", false);
         }
 
-        if (faceLayout.has("angle")) {
-            angle = faceLayout.get("angle").getAsInt();
-            validateAngle(angle);
-        }
-
+        int angle = getIntOrDefault(faceLayout, "angle", 0);
         return new BlockyModelGeometry.FaceTextureLayout(offsetX, offsetY, mirrorX, mirrorY, angle);
     }
 
-    /**
-     * Parse a direction name string to a Direction enum
-     *
-     * @param name      the direction name string
-     * @param frontFace the direction front maps to for this shape
-     * @return the corresponding Direction enum, or null if unknown
-     */
     private static Direction parseDirectionName(String name, Direction frontFace) {
         return switch (name.toLowerCase()) {
             case "front" -> frontFace;
@@ -344,17 +205,5 @@ public class BlockyModelParser {
                 yield null;
             }
         };
-    }
-
-    /**
-     * Validate that the angle is one of the allowed values
-     *
-     * @param angle the angle to validate
-     * @throws JsonParseException if the angle is invalid
-     */
-    private static void validateAngle(int angle) {
-        if (angle != 0 && angle != 90 && angle != 180 && angle != 270) {
-            throw new JsonParseException("Invalid angle: " + angle + ". Must be 0, 90, 180, or 270");
-        }
     }
 }
