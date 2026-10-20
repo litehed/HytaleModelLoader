@@ -55,13 +55,14 @@ Refer to the wiki to learn how to create and animate your models.
 
 - [x] Implement entity model loading
 - [x] Entity docs for v2 release
-- [x] Add animation support for entities
+- [x] Add animation support for com.litehed.hytalemodels.entities
 - [x] Animation docs
 - [x] Final code cleanup
 
 ### v2.1.0
 
 - [ ] Add player model swapping
+- [ ] Entity Render Layers
 
 ### Future Ports
 

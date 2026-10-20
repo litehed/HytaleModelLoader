@@ -4,6 +4,8 @@ import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.core.Direction;
 
 public class HytaleBlockEntityRenderState extends BlockEntityRenderState {
+    // Namespace the model and texture are loaded from
+    public String modelNamespace;
     public String modelName;
     public int animationTick;
     public float partialTick;

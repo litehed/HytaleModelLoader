@@ -23,6 +23,7 @@ import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.Material;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -51,6 +52,7 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         BlockEntityRenderer.super.extractRenderState(blockEntity, renderState, partialTick, cameraPosition, breakProgress);
 
         renderState.modelName = blockEntity.getModelName();
+        renderState.modelNamespace = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity.getType()).getNamespace();
         renderState.animationTick = blockEntity.getAnimationTick();
         renderState.partialTick = partialTick;
         renderState.ageInTicks = (blockEntity.getAnimationTick() + partialTick) * 4;
@@ -82,13 +84,13 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
             return;
         }
 
-        Identifier modelLocation = getModelLocation(renderState.modelName);
+        Identifier modelLocation = getModelLocation(renderState.modelNamespace, renderState.modelName);
         BlockyModelGeometry geometry = getOrLoadGeometry(modelLocation);
         if (geometry == null) {
             return;
         }
 
-        Material textureMaterial = getTextureMaterial(renderState.modelName);
+        Material textureMaterial = getTextureMaterial(renderState.modelNamespace, renderState.modelName);
         TextureAtlasSprite sprite = Minecraft.getInstance()
                 .getAtlasManager().get(textureMaterial);
 
@@ -143,22 +145,24 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
     /**
      * Location of the model file
      *
+     * @param namespace the namespace of the block entity's mod
      * @param modelName the name of the model
      * @return the location of the .blockymodel file
      */
-    protected Identifier getModelLocation(String modelName) {
-        return Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "models/" + modelName + ".blockymodel");
+    protected Identifier getModelLocation(String namespace, String modelName) {
+        return Identifier.fromNamespaceAndPath(namespace, "models/" + modelName + ".blockymodel");
     }
 
     /**
      * Texture used by the model
      *
+     * @param namespace the namespace of the block entity's mod
      * @param modelName the name of the model
      * @return the texture material
      */
-    protected Material getTextureMaterial(String modelName) {
+    protected Material getTextureMaterial(String namespace, String modelName) {
         return new Material(TextureAtlas.LOCATION_BLOCKS,
-                Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "block/" + modelName + "_texture"));
+                Identifier.fromNamespaceAndPath(namespace, "block/" + modelName + "_texture"));
     }
 
     private void renderNode(PoseStack poseStack, SubmitNodeCollector collector,
