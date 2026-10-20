@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "hytalemodelloader:block/goblin",
+      "y": 180
+    },
+    "facing=east": {
+      "model": "hytalemodelloader:block/goblin",
+      "y": 270
+    },
+    "facing=south": {
+      "model": "hytalemodelloader:block/goblin"
+    },
+    "facing=west": {
+      "model": "hytalemodelloader:block/goblin",
+      "y": 90
+    }
+  }
+}

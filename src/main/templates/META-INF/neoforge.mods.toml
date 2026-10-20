@@ -27,7 +27,7 @@ displayName = "${mod_name}" #mandatory
 #updateJSONURL="https://change.me.example.invalid/updates.json" #optional
 
 # A URL for the "homepage" for this mod, displayed in the mod UI
-displayURL="https://github.com/litehed/HytaleModelLoader/wiki" #optional
+displayURL = "https://github.com/litehed/HytaleModelLoader/wiki" #optional
 
 # A file name (in the root of the mod JAR) containing a logo for display
 #logoFile="examplemod.png" #optional
@@ -40,7 +40,8 @@ authors = "litehed"
 
 # The description text for the mod (multi line!) (#mandatory)
 description = '''
-Hytale Model Loader enables importing .blockymodel models and their respective .blockyanim animations from Hytale into Minecraft. Simply reference this loader in your model file and point to the blockymodel location to utilize this mod. Entity support will come in the future.
+Hytale Model Loader enables importing .blockymodel models and their respective .blockyanim animations from Hytale into Minecraft. Simply reference this loader in your model file and point to the blockymodel location to utilize this mod.
+Resource packs can use this mod to load custom block and item models through model references. For mod development, it provides support for custom block, item, and entity models, along with block and entity animations.
 For more advanced usages check the wiki.
 '''
 

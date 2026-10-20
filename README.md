@@ -53,17 +53,21 @@ Refer to the wiki to learn how to create and animate your models.
 
 ### v2.0.0
 
-- [ ] Implement entity model loading
-- [ ] Support for custom render layers and transparency blending
-- [ ] Clean code and docs for v2 release
+- [x] Implement entity model loading
+- [x] Entity docs for v2 release
+- [x] Add animation support for com.litehed.hytalemodels.entities
+- [x] Animation docs
+- [x] Final code cleanup
 
 ### v2.1.0
 
-- [ ] Add animation support for entities
-
-### v2.2.0
-
 - [ ] Add player model swapping
+- [ ] Entity Render Layers
+
+### Future Ports
+
+- [ ] 1.20.1 Forge
+- [ ] 1.21.1 NeoForge
 
 ## Contributing
 

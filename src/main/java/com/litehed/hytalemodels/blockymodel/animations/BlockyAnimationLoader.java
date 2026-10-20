@@ -1,6 +1,5 @@
 package com.litehed.hytalemodels.blockymodel.animations;
 
-import com.google.common.collect.Maps;
 import com.litehed.hytalemodels.HytaleModelLoader;
 import com.litehed.hytalemodels.blockymodel.BlockyTokenizer;
 import net.minecraft.client.Minecraft;
@@ -11,39 +10,39 @@ import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class BlockyAnimationLoader implements ResourceManagerReloadListener {
 
     public static final BlockyAnimationLoader INSTANCE = new BlockyAnimationLoader();
+    public static final Identifier ID = Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "blockyanim_loader");
 
-    private final Map<Identifier, BlockyAnimationDefinition> animationCache = Maps.newConcurrentMap();
+    // Failures are cached as empty so they only log once
+    private final Map<Identifier, Optional<BlockyAnimationDefinition>> animationCache = new ConcurrentHashMap<>();
 
+    /**
+     * Loads an animation. Results are cached until the next resource reload
+     *
+     * @param animationId the full path of the .blockyanim file
+     * @return the animation, or null if it is missing or invalid
+     */
     public BlockyAnimationDefinition loadAnimation(Identifier animationId) {
-        return animationCache.computeIfAbsent(animationId, this::parseAnimation);
+        return animationCache.computeIfAbsent(animationId, this::parseAnimation).orElse(null);
     }
 
-    public BlockyAnimationDefinition getAnimation(Identifier animationId) {
-        return animationCache.get(animationId);
-    }
-
-    public void clearAnimation(Identifier animationId) {
-        animationCache.remove(animationId);
-    }
-
-    private BlockyAnimationDefinition parseAnimation(Identifier id) {
-        ResourceManager manager = Minecraft.getInstance().getResourceManager();
-        Optional<Resource> resource = manager.getResource(id);
+    private Optional<BlockyAnimationDefinition> parseAnimation(Identifier id) {
+        Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(id);
 
         if (resource.isEmpty()) {
             HytaleModelLoader.LOGGER.warn("Animation resource not found: {}", id);
-            return null;
+            return Optional.empty();
         }
 
         try (BlockyTokenizer tokenizer = new BlockyTokenizer(resource.get().open())) {
-            return BlockyAnimParser.parse(tokenizer.getRoot());
+            return Optional.of(BlockyAnimParser.parse(tokenizer.getRoot()));
         } catch (Exception e) {
             HytaleModelLoader.LOGGER.error("Failed to parse animation '{}': {}", id, e.getMessage(), e);
-            return null;
+            return Optional.empty();
         }
     }
 

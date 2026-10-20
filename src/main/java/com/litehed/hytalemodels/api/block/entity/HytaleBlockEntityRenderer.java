@@ -7,7 +7,6 @@ import com.litehed.hytalemodels.blockymodel.BlockyModelGeometry;
 import com.litehed.hytalemodels.blockymodel.BlockyModelLoader;
 import com.litehed.hytalemodels.blockymodel.QuadBuilder;
 import com.litehed.hytalemodels.blockymodel.TransformCalculator;
-import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationDefinition;
 import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationLoader;
 import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -24,6 +23,7 @@ import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.Material;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -35,12 +35,13 @@ import org.joml.Vector3f;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
-public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S extends HytaleRenderState>
+public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S extends HytaleBlockEntityRenderState>
         implements BlockEntityRenderer<T, S> {
 
-    private final Map<String, BlockyModelGeometry> geometryCache = new HashMap<>();
-    private final Map<Identifier, BlockyAnimationPlayer> playerCache = new HashMap<>();
+    private final Map<Identifier, Optional<BlockyModelGeometry>> geometryCache = new HashMap<>();
+    private final Map<Identifier, Optional<BlockyAnimationPlayer>> playerCache = new HashMap<>();
 
     public HytaleBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -51,6 +52,7 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         BlockEntityRenderer.super.extractRenderState(blockEntity, renderState, partialTick, cameraPosition, breakProgress);
 
         renderState.modelName = blockEntity.getModelName();
+        renderState.modelNamespace = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity.getType()).getNamespace();
         renderState.animationTick = blockEntity.getAnimationTick();
         renderState.partialTick = partialTick;
         renderState.ageInTicks = (blockEntity.getAnimationTick() + partialTick) * 4;
@@ -65,12 +67,11 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         extractAdditionalRenderState(blockEntity, renderState, partialTick);
     }
 
-
     /**
-     * Allows subclasses to extract additional data from the block entity and put it into the render state
+     * Copies extra data from the block entity into the render state
      *
      * @param blockEntity the block entity being rendered
-     * @param renderState the render state being built for this block entity
+     * @param renderState the render state to fill
      * @param partialTick the current partial tick
      */
     protected void extractAdditionalRenderState(T blockEntity, S renderState, float partialTick) {
@@ -83,14 +84,13 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
             return;
         }
 
-        Identifier modelLocation = getModelLocation(renderState.modelName);
+        Identifier modelLocation = getModelLocation(renderState.modelNamespace, renderState.modelName);
         BlockyModelGeometry geometry = getOrLoadGeometry(modelLocation);
         if (geometry == null) {
-            HytaleModelLoader.LOGGER.warn("Failed to load geometry for model: {}", modelLocation);
             return;
         }
 
-        Material textureMaterial = getTextureMaterial(renderState.modelName);
+        Material textureMaterial = getTextureMaterial(renderState.modelNamespace, renderState.modelName);
         TextureAtlasSprite sprite = Minecraft.getInstance()
                 .getAtlasManager().get(textureMaterial);
 
@@ -108,7 +108,7 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         List<BlockyModelGeometry.BlockyNode> nodes = geometry.getNodes();
         for (BlockyModelGeometry.BlockyNode node : nodes) {
             if (node.hasShape()) {
-                renderNode(poseStack, submitNodeCollector, node, sprite, nodeTransforms, renderState);
+                renderNode(poseStack, submitNodeCollector, node, sprite, nodeTransforms, renderState.lightCoords);
             }
         }
 
@@ -116,22 +116,15 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
     }
 
     /**
-     * Returns the Y-axis rotation in degrees that should be applied to the model based on the
-     * block's facing direction.
+     * Y rotation in degrees for a facing. North is 180, east 90, west 270 and south 0
      *
-     * <p>Override to customize facing rotation behaviour. Default mapping:
-     * <ul>
-     *   <li>NORTH -> 180</li>
-     *   <li>EAST  -> 90</li>
-     *   <li>WEST  -> 270</li>
-     *   <li>SOUTH -> 0</li>
-     * </ul>
-     *
-     * @param facing the direction the block is facing; may be {@code null} if the block has no
-     *               facing property, in which case 0° is returned
-     * @return the rotation in degrees around the Y axis
+     * @param facing the facing of the block, null if it has none
+     * @return the rotation in degrees
      */
     protected float getFacingYRotation(Direction facing) {
+        if (facing == null) {
+            return 0f;
+        }
         return switch (facing) {
             case NORTH -> 180f;
             case EAST -> 90f;
@@ -140,54 +133,42 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         };
     }
 
-
     /**
-     * Calculates the transforms for all nodes in the model
+     * Works out the transform of each node for this frame
      *
-     * @param renderState the current render state containing animation tick and other relevant data
-     * @param geometry    the geometry of the model being rendered
-     * @return a map of node IDs/names to their corresponding transforms for the current frame
+     * @param renderState the render state with the animation time
+     * @param geometry    the model being rendered
+     * @return transforms keyed by node id or name
      */
     protected abstract Map<String, NodeTransform> calculateAnimationTransforms(S renderState, BlockyModelGeometry geometry);
 
-
     /**
-     * Gets the model location for a given model name
+     * Location of the model file
      *
+     * @param namespace the namespace of the block entity's mod
      * @param modelName the name of the model
-     * @return the identifier pointing to the model file for this model name
+     * @return the location of the .blockymodel file
      */
-    protected Identifier getModelLocation(String modelName) {
-        return Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "models/" + modelName + ".blockymodel");
+    protected Identifier getModelLocation(String namespace, String modelName) {
+        return Identifier.fromNamespaceAndPath(namespace, "models/" + modelName + ".blockymodel");
     }
 
     /**
-     * Gets the texture material for a given model name
+     * Texture used by the model
      *
+     * @param namespace the namespace of the block entity's mod
      * @param modelName the name of the model
-     * @return the material pointing to the texture for this model name
+     * @return the texture material
      */
-    protected Material getTextureMaterial(String modelName) {
+    protected Material getTextureMaterial(String namespace, String modelName) {
         return new Material(TextureAtlas.LOCATION_BLOCKS,
-                Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "block/" + modelName + "_texture"));
+                Identifier.fromNamespaceAndPath(namespace, "block/" + modelName + "_texture"));
     }
 
-    /**
-     * Renders a single node of the model, including applying any relevant transforms and rendering the quads for its shape
-     *
-     * @param poseStack      the current pose stack for rendering
-     * @param collector      the submit node collector to submit geometry to
-     * @param node           the node being rendered
-     * @param sprite         the texture sprite to use for rendering this node
-     * @param nodeTransforms the map of node transforms calculated for the current frame for animations
-     * @param renderState    the current render state
-     */
     private void renderNode(PoseStack poseStack, SubmitNodeCollector collector,
                             BlockyModelGeometry.BlockyNode node, TextureAtlasSprite sprite,
-                            Map<String, NodeTransform> nodeTransforms, S renderState) {
-
-        NodeTransform transform = nodeTransforms.get(node.getId());
-        if (transform == null) transform = nodeTransforms.get(node.getName());
+                            Map<String, NodeTransform> nodeTransforms, int lightCoords) {
+        NodeTransform transform = findTransform(nodeTransforms, node);
         if (transform != null && !transform.visible()) return;
 
         poseStack.pushPose();
@@ -212,30 +193,28 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
 
             collector.submitCustomGeometry(poseStack, renderType, (pose, buffer) ->
                     renderQuad(buffer, pose, direction, min, max, sprite, texLayout,
-                            shape.getOriginalSize(), renderState, shouldReverse));
+                            shape.getOriginalSize(), lightCoords, shouldReverse));
 
             // Render backface if double-sided
             if (shape.isDoubleSided()) {
                 collector.submitCustomGeometry(poseStack, renderType, (pose, buffer) ->
                         renderQuad(buffer, pose, direction, min, max, sprite, texLayout,
-                                shape.getOriginalSize(), renderState, !shouldReverse));
+                                shape.getOriginalSize(), lightCoords, !shouldReverse));
             }
         }
 
         poseStack.popPose();
     }
 
+    /**
+     * Render type used to draw the model
+     *
+     * @return the render type
+     */
     protected RenderType getRenderType() {
         return RenderTypes.cutoutMovingBlock();
     }
 
-    /**
-     * Applies the necessary transformations to the pose stack for rendering a given node
-     *
-     * @param poseStack           the current pose stack for rendering
-     * @param node                the node being rendered
-     * @param effectiveTransforms the map of effective transforms for all nodes
-     */
     private void applyNodeTransform(PoseStack poseStack, BlockyModelGeometry.BlockyNode node,
                                     Map<String, NodeTransform> effectiveTransforms) {
         Vector3f worldPos = TransformCalculator.calculateWorldPosition(node);
@@ -245,36 +224,32 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         Vector3f rotatedOffset = new Vector3f(shapeOffset);
         worldRot.transform(rotatedOffset);
 
-        float centerX = (worldPos.x + rotatedOffset.x) / 32.0f;
-        float centerY = ((worldPos.y + rotatedOffset.y) - 16.0f) / 32.0f;
-        float centerZ = (worldPos.z + rotatedOffset.z) / 32.0f;
+        float centerX = (worldPos.x + rotatedOffset.x) / TransformCalculator.UNITS_PER_BLOCK;
+        float centerY = ((worldPos.y + rotatedOffset.y) - TransformCalculator.ORIGIN_Y_OFFSET) / TransformCalculator.UNITS_PER_BLOCK;
+        float centerZ = (worldPos.z + rotatedOffset.z) / TransformCalculator.UNITS_PER_BLOCK;
 
-        NodeTransform effectiveTransform = effectiveTransforms.get(node.getId());
-        if (effectiveTransform == null) {
-            effectiveTransform = effectiveTransforms.get(node.getName());
-        }
+        NodeTransform effectiveTransform = findTransform(effectiveTransforms, node);
 
         NodeTransform parentAnimTransform = getParentAnimationTransform(node, effectiveTransforms);
 
-        boolean hasOwnAnimation = effectiveTransform != null && !effectiveTransform.equals(NodeTransform.identity());
-        boolean parentHasAnimation = parentAnimTransform != null && !parentAnimTransform.equals(NodeTransform.identity());
+        boolean hasOwnAnimation = effectiveTransform != null && !effectiveTransform.isIdentity();
+        boolean parentHasAnimation = parentAnimTransform != null && !parentAnimTransform.isIdentity();
 
         if (hasOwnAnimation || parentHasAnimation) {
             Vector3f parentPivot = null;
             BlockyModelGeometry.BlockyNode parent = node.getParent();
-            if (parent != null && (effectiveTransforms.containsKey(parent.getId()) ||
-                    effectiveTransforms.containsKey(parent.getName()))) {
+            if (parent != null && findTransform(effectiveTransforms, parent) != null) {
                 Vector3f parentWorldPos = TransformCalculator.calculateWorldPosition(parent);
                 parentPivot = new Vector3f(
-                        parentWorldPos.x / 32.0f,
-                        (parentWorldPos.y - 16.0f) / 32.0f,
-                        parentWorldPos.z / 32.0f
+                        parentWorldPos.x / TransformCalculator.UNITS_PER_BLOCK,
+                        (parentWorldPos.y - TransformCalculator.ORIGIN_Y_OFFSET) / TransformCalculator.UNITS_PER_BLOCK,
+                        parentWorldPos.z / TransformCalculator.UNITS_PER_BLOCK
                 );
             }
 
-            float childPivotX = worldPos.x / 32.0f;
-            float childPivotY = (worldPos.y - 16.0f) / 32.0f;
-            float childPivotZ = worldPos.z / 32.0f;
+            float childPivotX = worldPos.x / TransformCalculator.UNITS_PER_BLOCK;
+            float childPivotY = (worldPos.y - TransformCalculator.ORIGIN_Y_OFFSET) / TransformCalculator.UNITS_PER_BLOCK;
+            float childPivotZ = worldPos.z / TransformCalculator.UNITS_PER_BLOCK;
 
             if (parentHasAnimation && parentPivot != null) {
                 poseStack.translate(parentPivot.x, parentPivot.y, parentPivot.z);
@@ -308,23 +283,13 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         }
     }
 
-    /**
-     * Recursively checks parent nodes for animation transforms to apply to the current node (Child nodes inherit animations)
-     *
-     * @param node                the node being rendered
-     * @param effectiveTransforms the map of effective transforms for all nodes
-     * @return the first parent animation transform found, else null
-     */
     private NodeTransform getParentAnimationTransform(BlockyModelGeometry.BlockyNode node,
                                                       Map<String, NodeTransform> effectiveTransforms) {
         BlockyModelGeometry.BlockyNode current = node.getParent();
 
         while (current != null) {
-            NodeTransform transform = effectiveTransforms.get(current.getId());
-            if (transform == null) {
-                transform = effectiveTransforms.get(current.getName());
-            }
-            if (transform != null && !transform.equals(NodeTransform.identity())) {
+            NodeTransform transform = findTransform(effectiveTransforms, current);
+            if (transform != null && !transform.isIdentity()) {
                 return transform;
             }
             current = current.getParent();
@@ -333,24 +298,16 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         return null;
     }
 
-    /**
-     * Renders a single quad for a given face of the shape, applying the appropriate texture coordinates and normal based on the face direction
-     *
-     * @param buffer       the vertex consumer buffer to submit vertices to
-     * @param pose         the current pose for rendering, containing the transformation matrix and normal matrix
-     * @param direction    the face direction this quad is being rendered for
-     * @param min          the minimum corner of the quad in model space
-     * @param max          the maximum corner of the quad in model space
-     * @param sprite       the texture sprite to use for calculating UV coordinates
-     * @param texLayout    the texture layout information for this face, containing UV offsets and sizes
-     * @param originalSize the original size of the shape, used for calculating UV coordinates when set to stretch
-     * @param renderState  the current render state
-     * @param reversed     whether to reverse the vertex order for this quad
-     */
+    private static NodeTransform findTransform(Map<String, NodeTransform> transforms,
+                                               BlockyModelGeometry.BlockyNode node) {
+        NodeTransform transform = transforms.get(node.getId());
+        return transform != null ? transform : transforms.get(node.getName());
+    }
+
     private void renderQuad(VertexConsumer buffer, PoseStack.Pose pose, Direction direction,
                             Vector3f min, Vector3f max, TextureAtlasSprite sprite,
                             BlockyModelGeometry.FaceTextureLayout texLayout, Vector3f originalSize,
-                            S renderState, boolean reversed) {
+                            int lightCoords, boolean reversed) {
 
         Matrix4f poseMatrix = pose.pose();
         Matrix3f normalMatrix = pose.normal();
@@ -369,25 +326,15 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
 
         if (reversed) {
             for (int i = 3; i >= 0; i--) {
-                addVertex(buffer, poseMatrix, normal, vertices[i], uvCoords[i], renderState.lightCoords);
+                addVertex(buffer, poseMatrix, normal, vertices[i], uvCoords[i], lightCoords);
             }
         } else {
             for (int i = 0; i < 4; i++) {
-                addVertex(buffer, poseMatrix, normal, vertices[i], uvCoords[i], renderState.lightCoords);
+                addVertex(buffer, poseMatrix, normal, vertices[i], uvCoords[i], lightCoords);
             }
         }
     }
 
-    /**
-     * Adds a single vertex to the buffer with the given position, normal, UV coordinates, and light information
-     *
-     * @param buffer      the vertex consumer buffer to submit the vertex to
-     * @param pose        the current pose transformation matrix to apply to the vertex position
-     * @param normal      the normal vector for this vertex, used for lighting calculations
-     * @param vertex      the position of the vertex in model space
-     * @param uv          the UV coordinates for this vertex, calculated based on the texture layout and sprite
-     * @param lightCoords the combined block and sky light coordinates for this vertex, used for lighting calculations
-     */
     private void addVertex(VertexConsumer buffer, Matrix4f pose, Vector3f normal,
                            Vector3f vertex, float[] uv, int lightCoords) {
         int blockLight = lightCoords & 0xFFFF;
@@ -401,39 +348,25 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
     }
 
     /**
-     * Finds a node in the model geometry by its name, searching recursively through all nodes and their children
+     * Finds a node by its name
      *
-     * @param geometry the model geometry to search through
-     * @param name     the name of the node to find
-     * @return the node with the given name, else null
+     * @param geometry the model to search
+     * @param name     the name of the node
+     * @return the node, or null if there is none
      */
     protected BlockyModelGeometry.BlockyNode findNodeByName(BlockyModelGeometry geometry, String name) {
-        return findNodeByNameRecursive(geometry.getNodes(), name);
-    }
-
-    /**
-     * Helper method to recursively search for a node by name through a list of nodes and their children
-     *
-     * @param nodes the list of nodes to search through
-     * @param name  the name of the node to find
-     * @return the node with the given name, else null
-     */
-    private BlockyModelGeometry.BlockyNode findNodeByNameRecursive(
-            List<BlockyModelGeometry.BlockyNode> nodes, String name) {
-        for (BlockyModelGeometry.BlockyNode node : nodes) {
+        for (BlockyModelGeometry.BlockyNode node : geometry.getNodes()) {
             if (node.getName().equals(name)) return node;
-            BlockyModelGeometry.BlockyNode found = findNodeByNameRecursive(node.getChildren(), name);
-            if (found != null) return found;
         }
         return null;
     }
 
     /**
-     * Recursively applies a given rotation transform to a node and all of its descendants, storing the results in the provided transforms map
+     * Sets a rotation on every descendant of a node
      *
-     * @param node       the node to apply the transform to, along with all of its children
-     * @param rotation   the rotation to apply to this node and its descendants
-     * @param transforms the map to store the resulting transforms for each node, keyed by node ID or name
+     * @param node       the node whose descendants are rotated
+     * @param rotation   the rotation to set
+     * @param transforms the map the rotations are put in, keyed by node id
      */
     protected void applyTransformToDescendants(BlockyModelGeometry.BlockyNode node,
                                                Quaternionf rotation,
@@ -444,43 +377,28 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         }
     }
 
-    /**
-     * Gets the geometry for a given model location, either from the cache or by loading it from the model file if not already cached
-     *
-     * @param modelLocation the identifier pointing to the model file for this model
-     * @return the geometry for this model, else null
-     */
     private BlockyModelGeometry getOrLoadGeometry(Identifier modelLocation) {
-        String key = modelLocation.toString();
-
-        if (geometryCache.containsKey(key)) {
-            return geometryCache.get(key);
-        }
-
-        try {
-            BlockyModelGeometry geometry = BlockyModelLoader.INSTANCE.loadGeometry(
-                    new BlockyModelGeometry.Settings(modelLocation)
-            );
-            geometryCache.put(key, geometry);
-            return geometry;
-        } catch (Exception e) {
-            HytaleModelLoader.LOGGER.error("Failed to load geometry for {}: {}", modelLocation, e.getMessage());
-            return null;
-        }
+        return geometryCache.computeIfAbsent(modelLocation, location -> {
+            try {
+                return Optional.of(BlockyModelLoader.INSTANCE.loadGeometry(new BlockyModelGeometry.Settings(location)));
+            } catch (Exception e) {
+                // Cached as empty so it only logs once
+                HytaleModelLoader.LOGGER.error("Failed to load geometry for {}: {}", location, e.getMessage());
+                return Optional.empty();
+            }
+        }).orElse(null);
     }
 
     /**
-     * Returns a cached BlockyAnimationPlayer for the given animation ID, creating and caching one
-     * on first access. Returns null if the animation definition cannot be loaded.
+     * Gets an animation player, cached per renderer
      *
-     * @param animId the identifier pointing to the animation file
-     * @return the cached player for this animation, else null
+     * @param animId the location of the animation file
+     * @return the player, or null if the animation can't be loaded
      */
     protected BlockyAnimationPlayer getOrCreatePlayer(Identifier animId) {
-        return playerCache.computeIfAbsent(animId, id -> {
-            BlockyAnimationDefinition definition = BlockyAnimationLoader.INSTANCE.loadAnimation(id);
-            return definition != null ? new BlockyAnimationPlayer(definition) : null;
-        });
+        return playerCache.computeIfAbsent(animId, id ->
+                Optional.ofNullable(BlockyAnimationLoader.INSTANCE.loadAnimation(id)).map(BlockyAnimationPlayer::new)
+        ).orElse(null);
     }
 
 }

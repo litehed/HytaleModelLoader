@@ -1,0 +1,249 @@
+package com.litehed.hytalemodels.api.entity;
+
+import com.litehed.hytalemodels.HytaleModelLoader;
+import com.litehed.hytalemodels.api.BlockyPose;
+import com.litehed.hytalemodels.blockymodel.BlockyModelGeometry;
+import com.litehed.hytalemodels.blockymodel.BlockyModelLoader;
+import com.litehed.hytalemodels.blockymodel.PreparedBlockyModel;
+import com.litehed.hytalemodels.blockymodel.UVRegion;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationDefinition;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationLoader;
+import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.EntityRendererProvider;
+import net.minecraft.client.renderer.entity.MobRenderer;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.util.ARGB;
+import net.minecraft.world.entity.Mob;
+import org.jspecify.annotations.Nullable;
+
+import java.io.DataInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Base renderer for mobs drawn from a .blockymodel
+ *
+ * @param <T> the entity type
+ * @param <S> the render state type
+ */
+public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntityRenderState>
+        extends MobRenderer<T, S, BlockyPlaceholderModel<S>> {
+
+    // Vanilla puts the model origin this far above the feet
+    private static final float VANILLA_MODEL_OFFSET = 1.501F;
+    // Vanilla's tint for translucent entities
+    private static final int TRANSLUCENT_TINT = 654311423;
+
+    // Renderers are recreated on resource reload so these stay fresh
+    private final Map<Identifier, Optional<Prepared>> preparedCache = new HashMap<>();
+    private final Map<Identifier, Optional<BlockyAnimationPlayer>> animationCache = new HashMap<>();
+
+    // Set during submit so getRenderType can use them
+    private PoseStack activePoseStack;
+    private SubmitNodeCollector activeCollector;
+
+    protected HytaleEntityRenderer(EntityRendererProvider.Context context, float shadowRadius) {
+        super(context, new BlockyPlaceholderModel<>(), shadowRadius);
+    }
+
+    /**
+     * @param entity the entity being rendered
+     * @return the model name, resolved to models/name.blockymodel
+     */
+    protected abstract String getModelName(T entity);
+
+    /**
+     * Scale of the whole model, on top of the scale attribute
+     *
+     * @return the scale, 1.0 by default
+     */
+    protected float getModelScale() {
+        return 1.0f;
+    }
+
+    /**
+     * Animation units that pass per game tick, same as the block entity renderers
+     * Multiply ageInTicks by this when playing an animation
+     *
+     * @return animation units per tick, 4 by default
+     */
+    protected float getAnimationUnitsPerTick() {
+        return 4.0f;
+    }
+
+    /**
+     * Poses the model for this frame like vanilla's setupAnim
+     * Everything added to the pose is layered on the rest pose
+     *
+     * @param renderState the entity's render state
+     * @param pose        the pose to add to
+     */
+    protected void setupAnim(S renderState, BlockyPose pose) {
+    }
+
+    @Override
+    public void extractRenderState(T entity, S renderState, float partialTick) {
+        super.extractRenderState(entity, renderState, partialTick);
+        renderState.modelNamespace = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).getNamespace();
+        renderState.modelName = getModelName(entity);
+    }
+
+    @Override
+    public void submit(S renderState, PoseStack poseStack, SubmitNodeCollector collector,
+                       CameraRenderState cameraRenderState) {
+        this.activePoseStack = poseStack;
+        this.activeCollector = collector;
+        try {
+            super.submit(renderState, poseStack, collector, cameraRenderState);
+        } finally {
+            this.activePoseStack = null;
+            this.activeCollector = null;
+        }
+    }
+
+    @Override
+    protected @Nullable RenderType getRenderType(S renderState, boolean visible, boolean translucent, boolean glowing) {
+        // Returning null makes vanilla skip its own model
+        if (activePoseStack != null && activeCollector != null && (visible || translucent)) {
+            submitBlockyModel(renderState, translucent);
+        }
+        return null;
+    }
+
+    private void submitBlockyModel(S renderState, boolean translucent) {
+        Prepared prepared = getOrPrepare(renderState.modelNamespace, renderState.modelName);
+        if (prepared == null) {
+            return;
+        }
+
+        BlockyPose pose = new BlockyPose();
+        setupAnim(renderState, pose);
+
+        PoseStack poseStack = activePoseStack;
+        poseStack.pushPose();
+
+        // Undo vanilla's flipped model space
+        poseStack.translate(0.0F, VANILLA_MODEL_OFFSET, 0.0F);
+        poseStack.scale(-1.0F, -1.0F, 1.0F);
+        // Vanilla models face -Z, Blocky models face +Z
+        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F));
+
+        float modelScale = getModelScale();
+        poseStack.scale(modelScale, modelScale, modelScale);
+
+        RenderType renderType = translucent
+                ? RenderTypes.itemEntityTranslucentCull(getTextureLocation(renderState))
+                : prepared.renderType();
+        int overlay = getOverlayCoords(renderState, getWhiteOverlayProgress(renderState));
+        int tint = ARGB.multiply(translucent ? TRANSLUCENT_TINT : -1, getModelTint(renderState));
+
+        prepared.model().submit(poseStack, activeCollector, renderType, renderState.lightCoords, overlay, tint, pose);
+
+        poseStack.popPose();
+    }
+
+    @Override
+    public Identifier getTextureLocation(S renderState) {
+        return getEntityTexture(renderState.modelNamespace, renderState.modelName);
+    }
+
+    /**
+     * Loads a keyframe animation for the entity's model, cached per renderer
+     *
+     * @param renderState   the entity's render state
+     * @param animationName the animation's file name without extension. Must be lower-case
+     * @return the animation, or null if it is missing or invalid
+     */
+    protected @Nullable BlockyAnimationPlayer getAnimation(S renderState, String animationName) {
+        Identifier location = getAnimationLocation(renderState.modelNamespace, renderState.modelName, animationName);
+        return animationCache.computeIfAbsent(location, id -> {
+            BlockyAnimationDefinition definition = BlockyAnimationLoader.INSTANCE.loadAnimation(id);
+            return Optional.ofNullable(definition).map(BlockyAnimationPlayer::new);
+        }).orElse(null);
+    }
+
+    /**
+     * Render type used to draw the model. Override for no culling or transparency
+     *
+     * @param texture the model's texture
+     * @return the render type
+     */
+    protected RenderType createRenderType(Identifier texture) {
+        return RenderTypes.entityCutout(texture);
+    }
+
+    protected Identifier getModelLocation(String namespace, String modelName) {
+        return Identifier.fromNamespaceAndPath(namespace, "models/" + modelName + ".blockymodel");
+    }
+
+    /**
+     * @return the full resource path of the model's PNG texture
+     */
+    protected Identifier getEntityTexture(String namespace, String modelName) {
+        return Identifier.fromNamespaceAndPath(namespace, "textures/entity/" + modelName + ".png");
+    }
+
+    protected Identifier getAnimationLocation(String namespace, String modelName, String animationName) {
+        return Identifier.fromNamespaceAndPath(namespace,
+                "animations/" + modelName + "/" + animationName + ".blockyanim");
+    }
+
+    private Prepared getOrPrepare(String namespace, String modelName) {
+        if (namespace == null || modelName == null) {
+            return null;
+        }
+        Identifier key = Identifier.fromNamespaceAndPath(namespace, modelName);
+        return preparedCache.computeIfAbsent(key, id -> prepare(namespace, modelName)).orElse(null);
+    }
+
+    private Optional<Prepared> prepare(String namespace, String modelName) {
+        Identifier modelLocation = getModelLocation(namespace, modelName);
+        Identifier texture = getEntityTexture(namespace, modelName);
+        try {
+            BlockyModelGeometry geometry = BlockyModelLoader.INSTANCE.loadGeometry(
+                    new BlockyModelGeometry.Settings(modelLocation));
+
+            int[] size = readPngSize(texture);
+            PreparedBlockyModel model = PreparedBlockyModel.create(geometry, UVRegion.fullTexture(size[0], size[1]));
+
+            return Optional.of(new Prepared(model, createRenderType(texture)));
+        } catch (Exception e) {
+            // Cached as empty so it only logs once
+            HytaleModelLoader.LOGGER.error("Failed to prepare model {} with texture {}: {}",
+                    modelLocation, texture, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Reads a PNG's size from its header without decoding the image
+     *
+     * @param texture the full resource path of the PNG
+     * @return {width, height}
+     * @throws IOException if the texture is missing or is not a valid PNG
+     */
+    private static int[] readPngSize(Identifier texture) throws IOException {
+        Resource resource = Minecraft.getInstance().getResourceManager().getResource(texture)
+                .orElseThrow(() -> new FileNotFoundException("Missing texture " + texture));
+        try (DataInputStream in = new DataInputStream(resource.open())) {
+            // Skip the signature and chunk header, then read width and height
+            in.skipNBytes(16);
+            return new int[]{in.readInt(), in.readInt()};
+        }
+    }
+
+    private record Prepared(PreparedBlockyModel model, RenderType renderType) {
+    }
+}
