@@ -57,11 +57,16 @@ Refer to the wiki to learn how to create and animate your models.
 - [x] Entity docs for v2 release
 - [x] Add animation support for entities
 - [x] Animation docs
-- [ ] Final code cleanup
+- [x] Final code cleanup
 
 ### v2.1.0
 
 - [ ] Add player model swapping
+
+### Future Ports
+
+- [ ] 1.20.1 Forge
+- [ ] 1.21.1 NeoForge
 
 ## Contributing
 

@@ -8,37 +8,33 @@ import com.litehed.hytalemodels.HytaleModelLoader;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.litehed.hytalemodels.blockymodel.ParserUtil.getBooleanOrDefault;
 import static com.litehed.hytalemodels.blockymodel.ParserUtil.getFloatOrDefault;
 
 public final class BlockyAnimParser {
 
+    /**
+     * Parses an animation file
+     *
+     * @param root the root of the animation file
+     * @return the animation
+     * @throws JsonParseException if the file is missing its duration or node animations, or a keyframe is incomplete
+     */
     public static BlockyAnimationDefinition parse(JsonObject root) throws JsonParseException {
-        validateRequiredFields(root);
-
-//        int formatVersion = getIntOrDefault(root, "formatVersion", 1); idk if this will have a use, commented for now
-        float duration = root.get("duration").getAsFloat();
-        boolean holdLastKeyframe = getBooleanOrDefault(root, "holdLastKeyframe", false);
-
-        return new BlockyAnimationDefinition.Builder()
-                .duration(duration)
-                .holdLastKeyframe(holdLastKeyframe)
-                .addNodeAnimations(parseNodeAnimations(root))
-                .build();
-    }
-
-    private static void validateRequiredFields(JsonObject root) throws JsonParseException {
         if (!root.has("duration")) {
             throw new JsonParseException("Animation file missing required field: 'duration'");
         }
         if (!root.has("nodeAnimations")) {
             throw new JsonParseException("Animation file missing required field: 'nodeAnimations'");
         }
+
+        return new BlockyAnimationDefinition.Builder()
+                .duration(root.get("duration").getAsFloat())
+                .holdLastKeyframe(getBooleanOrDefault(root, "holdLastKeyframe", false))
+                .addNodeAnimations(parseNodeAnimations(root))
+                .build();
     }
 
     private static Map<String, List<NodeAnimationTrack>> parseNodeAnimations(JsonObject root) {
@@ -66,7 +62,7 @@ public final class BlockyAnimParser {
             }
 
             JsonArray keyframesArray = nodeObj.getAsJsonArray(trackKey);
-            if (keyframesArray.isEmpty()) continue; // Skip empty tracks
+            if (keyframesArray.isEmpty()) continue;
 
             List<BlockyKeyframe> keyframes = parseKeyframes(trackType, keyframesArray);
             if (!keyframes.isEmpty()) {
@@ -77,23 +73,29 @@ public final class BlockyAnimParser {
         return tracks;
     }
 
-    private static List<BlockyKeyframe> parseKeyframes(
-            NodeAnimationTrack.AnimationTrackType trackType,
-            JsonArray keyframesArray) {
-
+    private static List<BlockyKeyframe> parseKeyframes(NodeAnimationTrack.AnimationTrackType trackType,
+                                                       JsonArray keyframesArray) {
         List<BlockyKeyframe> keyframes = new ArrayList<>();
 
         for (JsonElement element : keyframesArray) {
             JsonObject keyframeObj = element.getAsJsonObject();
+            if (!keyframeObj.has("time") || !keyframeObj.has("delta")) {
+                throw new JsonParseException("Keyframe missing required field: 'time' or 'delta'");
+            }
+
             float time = keyframeObj.get("time").getAsFloat();
-            BlockyKeyframe.InterpolationType interpolationType = parseInterpolationType(keyframeObj);
+            JsonElement delta = keyframeObj.get("delta");
+            BlockyKeyframe.InterpolationType interpolation = parseInterpolationType(keyframeObj);
 
             BlockyKeyframe keyframe = switch (trackType) {
-                case POSITION -> parsePositionKeyframe(time, keyframeObj, interpolationType);
-                case ORIENTATION -> parseOrientationKeyframe(time, keyframeObj, interpolationType);
-                case SHAPE_STRETCH -> parseScaleKeyframe(time, keyframeObj, interpolationType);
-                case SHAPE_VISIBLE -> parseVisibilityKeyframe(time, keyframeObj, interpolationType);
-                case SHAPE_UV_OFFSET -> null;
+                case POSITION ->
+                        new BlockyKeyframe.PositionKeyframe(time, parseVector3f(delta.getAsJsonObject()), interpolation);
+                case ORIENTATION ->
+                        new BlockyKeyframe.OrientationKeyframe(time, parseQuaternion(delta.getAsJsonObject()), interpolation);
+                case SHAPE_STRETCH ->
+                        new BlockyKeyframe.ScaleKeyframe(time, parseVector3f(delta.getAsJsonObject()), interpolation);
+                case SHAPE_VISIBLE -> new BlockyKeyframe.VisibilityKeyframe(time, delta.getAsBoolean(), interpolation);
+                case SHAPE_UV_OFFSET -> null; // Not supported yet
             };
 
             if (keyframe != null) {
@@ -101,44 +103,9 @@ public final class BlockyAnimParser {
             }
         }
 
+        // The player expects keyframes in time order
+        keyframes.sort(Comparator.comparingDouble(BlockyKeyframe::getTime));
         return keyframes;
-    }
-
-    private static BlockyKeyframe.PositionKeyframe parsePositionKeyframe(
-            float time, JsonObject kfObj, BlockyKeyframe.InterpolationType interp) {
-
-        Vector3f delta = parseVector3f(kfObj.getAsJsonObject("delta"));
-        return new BlockyKeyframe.PositionKeyframe(time, delta, interp);
-    }
-
-    private static BlockyKeyframe.OrientationKeyframe parseOrientationKeyframe(
-            float time,
-            JsonObject keyframeObj,
-            BlockyKeyframe.InterpolationType interpolationType) {
-
-        JsonObject deltaObj = keyframeObj.getAsJsonObject("delta");
-        Quaternionf delta = new Quaternionf(
-                getFloatOrDefault(deltaObj, "x", 0),
-                getFloatOrDefault(deltaObj, "y", 0),
-                getFloatOrDefault(deltaObj, "z", 0),
-                getFloatOrDefault(deltaObj, "w", 1)
-        );
-
-        return new BlockyKeyframe.OrientationKeyframe(time, delta, interpolationType);
-    }
-
-    private static BlockyKeyframe.ScaleKeyframe parseScaleKeyframe(
-            float time, JsonObject kfObj, BlockyKeyframe.InterpolationType interp) {
-
-        Vector3f delta = parseVector3f(kfObj.getAsJsonObject("delta"));
-        return new BlockyKeyframe.ScaleKeyframe(time, delta, interp);
-    }
-
-    private static BlockyKeyframe.VisibilityKeyframe parseVisibilityKeyframe(
-            float time, JsonObject kfObj, BlockyKeyframe.InterpolationType interp) {
-
-        boolean visible = kfObj.get("delta").getAsBoolean();
-        return new BlockyKeyframe.VisibilityKeyframe(time, visible, interp);
     }
 
     private static Vector3f parseVector3f(JsonObject obj) {
@@ -149,6 +116,14 @@ public final class BlockyAnimParser {
         );
     }
 
+    private static Quaternionf parseQuaternion(JsonObject obj) {
+        return new Quaternionf(
+                getFloatOrDefault(obj, "x", 0),
+                getFloatOrDefault(obj, "y", 0),
+                getFloatOrDefault(obj, "z", 0),
+                getFloatOrDefault(obj, "w", 1)
+        );
+    }
 
     private static BlockyKeyframe.InterpolationType parseInterpolationType(JsonObject keyframeObj) {
         if (!keyframeObj.has("interpolationType")) {
