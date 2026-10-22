@@ -4,8 +4,8 @@ import com.litehed.hytalemodels.blockymodel.TransformCalculator;
 import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
-import org.jspecify.annotations.Nullable;
 
+import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.Map;
 

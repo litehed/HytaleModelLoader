@@ -5,21 +5,20 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.litehed.hytalemodels.HytaleModelLoader;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
-import net.neoforged.neoforge.client.model.StandardModelParameters;
-import net.neoforged.neoforge.client.model.UnbakedModelLoader;
+import net.neoforged.neoforge.client.model.geometry.IGeometryLoader;
 
 import java.io.FileNotFoundException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class BlockyModelLoader implements UnbakedModelLoader<BlockyModel>, ResourceManagerReloadListener {
+public class BlockyModelLoader implements IGeometryLoader<BlockyModelGeometry>, ResourceManagerReloadListener {
 
     public static final BlockyModelLoader INSTANCE = new BlockyModelLoader();
-    public static final Identifier ID = Identifier.fromNamespaceAndPath(HytaleModelLoader.MODID, "blockymodel_loader");
+    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(HytaleModelLoader.MODID, "blockymodel_loader");
 
     private final Map<BlockyModelGeometry.Settings, BlockyModelGeometry> geometryCache = new ConcurrentHashMap<>();
 
@@ -29,16 +28,13 @@ public class BlockyModelLoader implements UnbakedModelLoader<BlockyModel>, Resou
     }
 
     @Override
-    public BlockyModel read(JsonObject jsonObject, JsonDeserializationContext context) throws JsonParseException {
+    public BlockyModelGeometry read(JsonObject jsonObject, JsonDeserializationContext context) throws JsonParseException {
         if (!jsonObject.has("model")) {
             throw new JsonParseException("BlockyModel Loader requires a 'model' key that points to a valid BlockyModel file.");
         }
 
         String modelLocation = jsonObject.get("model").getAsString();
-        StandardModelParameters parameters = StandardModelParameters.parse(jsonObject, context);
-
-        BlockyModelGeometry geometry = loadGeometry(new BlockyModelGeometry.Settings(Identifier.parse(modelLocation)));
-        return new BlockyModel(parameters, geometry);
+        return loadGeometry(new BlockyModelGeometry.Settings(ResourceLocation.parse(modelLocation)));
     }
 
     /**
@@ -52,7 +48,7 @@ public class BlockyModelLoader implements UnbakedModelLoader<BlockyModel>, Resou
     }
 
     private BlockyModelGeometry readGeometry(BlockyModelGeometry.Settings settings) {
-        Identifier location = settings.modelLocation();
+        ResourceLocation location = settings.modelLocation();
         try {
             Resource resource = Minecraft.getInstance().getResourceManager().getResource(location)
                     .orElseThrow(() -> new FileNotFoundException("File not found"));

@@ -4,8 +4,6 @@ import com.litehed.hytalemodels.api.BlockyPose;
 import com.litehed.hytalemodels.api.NodeTransform;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.Direction;
 import org.joml.Quaternionf;
@@ -17,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A static, precomputed model snapshot with node transforms and baked face geometry.
+ * A precomputed model with node transforms and baked face geometry.
  * Rebuilt whenever the texture region changes, such as after resource reloads.
  */
 public final class PreparedBlockyModel {
@@ -127,28 +125,26 @@ public final class PreparedBlockyModel {
     }
 
     /**
-     * Submits the model in its rest pose
+     * Renders the model in its rest pose
      *
-     * @see #submit(PoseStack, SubmitNodeCollector, RenderType, int, int, int, BlockyPose)
+     * @see #render(PoseStack, VertexConsumer, int, int, int, BlockyPose)
      */
-    public void submit(PoseStack poseStack, SubmitNodeCollector collector, RenderType renderType,
-                       int lightCoords, int overlayCoords, int color) {
-        submit(poseStack, collector, renderType, lightCoords, overlayCoords, color, new BlockyPose());
+    public void render(PoseStack poseStack, VertexConsumer buffer, int lightCoords, int overlayCoords, int color) {
+        render(poseStack, buffer, lightCoords, overlayCoords, color, new BlockyPose());
     }
 
     /**
-     * Submits the model with a pose. The pose stack's current transform is the model origin
+     * Renders the model with a pose. The pose stack's current transform is the model origin
      *
      * @param poseStack     the pose stack, already moved to where the model goes
-     * @param collector     the collector to submit geometry to
-     * @param renderType    the render type to draw with
+     * @param buffer        the buffer to write to, from the render type the texture needs
      * @param lightCoords   packed light for the whole model
      * @param overlayCoords packed overlay for the hurt flash, or OverlayTexture.NO_OVERLAY
      * @param color         packed ARGB tint, -1 for none
      * @param blockyPose    transforms layered on the rest pose
      */
-    public void submit(PoseStack poseStack, SubmitNodeCollector collector, RenderType renderType,
-                       int lightCoords, int overlayCoords, int color, BlockyPose blockyPose) {
+    public void render(PoseStack poseStack, VertexConsumer buffer, int lightCoords, int overlayCoords, int color,
+                       BlockyPose blockyPose) {
         int blockLight = lightCoords & 0xFFFF;
         int skyLight = (lightCoords >> 16) & 0xFFFF;
 
@@ -198,8 +194,7 @@ public final class PreparedBlockyModel {
                 }
             }
 
-            collector.submitCustomGeometry(poseStack, renderType,
-                    (pose, buffer) -> writeQuads(bone.quads, pose, buffer, blockLight, skyLight, overlayCoords, color));
+            writeQuads(bone.quads, poseStack.last(), buffer, blockLight, skyLight, overlayCoords, color);
 
             poseStack.popPose();
         }

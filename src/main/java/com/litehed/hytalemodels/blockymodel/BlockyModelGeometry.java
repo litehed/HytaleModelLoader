@@ -1,23 +1,25 @@
 package com.litehed.hytalemodels.blockymodel;
 
 import com.mojang.math.Transformation;
-import net.minecraft.client.renderer.block.model.TextureSlots;
+import net.minecraft.client.renderer.block.model.ItemOverrides;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.client.resources.model.Material;
 import net.minecraft.client.resources.model.ModelBaker;
-import net.minecraft.client.resources.model.ModelDebugName;
 import net.minecraft.client.resources.model.ModelState;
-import net.minecraft.client.resources.model.QuadCollection;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.Identifier;
-import net.minecraft.util.context.ContextMap;
-import net.neoforged.neoforge.client.model.ExtendedUnbakedGeometry;
-import net.neoforged.neoforge.client.model.NeoForgeModelProperties;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.client.RenderTypeGroup;
+import net.neoforged.neoforge.client.model.IModelBuilder;
+import net.neoforged.neoforge.client.model.geometry.IGeometryBakingContext;
+import net.neoforged.neoforge.client.model.geometry.IUnbakedGeometry;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import java.util.*;
+import java.util.function.Function;
 
-public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
+public class BlockyModelGeometry implements IUnbakedGeometry<BlockyModelGeometry> {
 
     private final List<BlockyNode> nodes;
 
@@ -36,19 +38,24 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
     }
 
     @Override
-    public QuadCollection bake(TextureSlots textureSlots, ModelBaker modelBaker, ModelState modelState,
-                               ModelDebugName modelDebugName, ContextMap contextMap) {
-        QuadCollection.Builder builder = new QuadCollection.Builder();
-        Transformation rootTransform = contextMap.getOrDefault(
-                NeoForgeModelProperties.TRANSFORM,
-                Transformation.identity()
-        );
+    public BakedModel bake(IGeometryBakingContext context, ModelBaker baker,
+                           Function<Material, TextureAtlasSprite> spriteGetter, ModelState modelState,
+                           ItemOverrides overrides) {
+        TextureAtlasSprite sprite = spriteGetter.apply(context.getMaterial("texture"));
+        TextureAtlasSprite particle = context.hasMaterial("particle")
+                ? spriteGetter.apply(context.getMaterial("particle"))
+                : sprite;
 
+        Transformation rootTransform = context.getRootTransform();
         Transformation finalTransform = rootTransform.isIdentity()
-                ? modelState.transformation()
-                : modelState.transformation().compose(rootTransform);
+                ? modelState.getRotation()
+                : modelState.getRotation().compose(rootTransform);
 
-        TextureAtlasSprite sprite = modelBaker.sprites().resolveSlot(textureSlots, "texture", modelDebugName);
+        ResourceLocation renderTypeHint = context.getRenderTypeHint();
+        RenderTypeGroup renderTypes = renderTypeHint != null ? context.getRenderType(renderTypeHint) : RenderTypeGroup.EMPTY;
+
+        IModelBuilder<?> builder = IModelBuilder.of(context.useAmbientOcclusion(), context.useBlockLight(),
+                context.isGui3d(), context.getTransforms(), overrides, particle, renderTypes);
 
         for (BlockyNode node : nodes) {
             if (node.hasShape()) {
@@ -59,7 +66,7 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
         return builder.build();
     }
 
-    private void bakeNode(QuadCollection.Builder builder, BlockyNode node, TextureAtlasSprite sprite,
+    private void bakeNode(IModelBuilder<?> builder, BlockyNode node, TextureAtlasSprite sprite,
                           Transformation modelTransform) {
         BlockyShape shape = node.getShape();
 
@@ -106,7 +113,7 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
         return nodes;
     }
 
-    public record Settings(Identifier modelLocation) {
+    public record Settings(ResourceLocation modelLocation) {
     }
 
     public static final class BlockyNode {

@@ -19,12 +19,12 @@ import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.CameraRenderState;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.ARGB;
 import net.minecraft.world.entity.Mob;
-import org.jspecify.annotations.Nullable;
 
+import javax.annotation.Nullable;
 import java.io.DataInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -47,8 +47,8 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
     private static final int TRANSLUCENT_TINT = 654311423;
 
     // Renderers are recreated on resource reload so these stay fresh
-    private final Map<Identifier, Optional<Prepared>> preparedCache = new HashMap<>();
-    private final Map<Identifier, Optional<BlockyAnimationPlayer>> animationCache = new HashMap<>();
+    private final Map<ResourceLocation, Optional<Prepared>> preparedCache = new HashMap<>();
+    private final Map<ResourceLocation, Optional<BlockyAnimationPlayer>> animationCache = new HashMap<>();
 
     // Set during submit so getRenderType can use them
     private PoseStack activePoseStack;
@@ -155,7 +155,7 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
     }
 
     @Override
-    public Identifier getTextureLocation(S renderState) {
+    public ResourceLocation getTextureLocation(S renderState) {
         return getEntityTexture(renderState.modelNamespace, renderState.modelName);
     }
 
@@ -167,7 +167,7 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
      * @return the animation, or null if it is missing or invalid
      */
     protected @Nullable BlockyAnimationPlayer getAnimation(S renderState, String animationName) {
-        Identifier location = getAnimationLocation(renderState.modelNamespace, renderState.modelName, animationName);
+        ResourceLocation location = getAnimationLocation(renderState.modelNamespace, renderState.modelName, animationName);
         return animationCache.computeIfAbsent(location, id -> {
             BlockyAnimationDefinition definition = BlockyAnimationLoader.INSTANCE.loadAnimation(id);
             return Optional.ofNullable(definition).map(BlockyAnimationPlayer::new);
@@ -180,23 +180,23 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
      * @param texture the model's texture
      * @return the render type
      */
-    protected RenderType createRenderType(Identifier texture) {
+    protected RenderType createRenderType(ResourceLocation texture) {
         return RenderTypes.entityCutout(texture);
     }
 
-    protected Identifier getModelLocation(String namespace, String modelName) {
-        return Identifier.fromNamespaceAndPath(namespace, "models/" + modelName + ".blockymodel");
+    protected ResourceLocation getModelLocation(String namespace, String modelName) {
+        return ResourceLocation.fromNamespaceAndPath(namespace, "models/" + modelName + ".blockymodel");
     }
 
     /**
      * @return the full resource path of the model's PNG texture
      */
-    protected Identifier getEntityTexture(String namespace, String modelName) {
-        return Identifier.fromNamespaceAndPath(namespace, "textures/entity/" + modelName + ".png");
+    protected ResourceLocation getEntityTexture(String namespace, String modelName) {
+        return ResourceLocation.fromNamespaceAndPath(namespace, "textures/entity/" + modelName + ".png");
     }
 
-    protected Identifier getAnimationLocation(String namespace, String modelName, String animationName) {
-        return Identifier.fromNamespaceAndPath(namespace,
+    protected ResourceLocation getAnimationLocation(String namespace, String modelName, String animationName) {
+        return ResourceLocation.fromNamespaceAndPath(namespace,
                 "animations/" + modelName + "/" + animationName + ".blockyanim");
     }
 
@@ -204,13 +204,13 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
         if (namespace == null || modelName == null) {
             return null;
         }
-        Identifier key = Identifier.fromNamespaceAndPath(namespace, modelName);
+        ResourceLocation key = ResourceLocation.fromNamespaceAndPath(namespace, modelName);
         return preparedCache.computeIfAbsent(key, id -> prepare(namespace, modelName)).orElse(null);
     }
 
     private Optional<Prepared> prepare(String namespace, String modelName) {
-        Identifier modelLocation = getModelLocation(namespace, modelName);
-        Identifier texture = getEntityTexture(namespace, modelName);
+        ResourceLocation modelLocation = getModelLocation(namespace, modelName);
+        ResourceLocation texture = getEntityTexture(namespace, modelName);
         try {
             BlockyModelGeometry geometry = BlockyModelLoader.INSTANCE.loadGeometry(
                     new BlockyModelGeometry.Settings(modelLocation));
@@ -234,7 +234,7 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
      * @return {width, height}
      * @throws IOException if the texture is missing or is not a valid PNG
      */
-    private static int[] readPngSize(Identifier texture) throws IOException {
+    private static int[] readPngSize(ResourceLocation texture) throws IOException {
         Resource resource = Minecraft.getInstance().getResourceManager().getResource(texture)
                 .orElseThrow(() -> new FileNotFoundException("Missing texture " + texture));
         try (DataInputStream in = new DataInputStream(resource.open())) {
