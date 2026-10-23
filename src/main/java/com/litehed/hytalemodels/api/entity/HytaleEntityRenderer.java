@@ -6,22 +6,15 @@ import com.litehed.hytalemodels.blockymodel.BlockyModelGeometry;
 import com.litehed.hytalemodels.blockymodel.BlockyModelLoader;
 import com.litehed.hytalemodels.blockymodel.PreparedBlockyModel;
 import com.litehed.hytalemodels.blockymodel.UVRegion;
-import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationDefinition;
 import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationLoader;
 import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.MobRenderer;
-import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.client.renderer.state.CameraRenderState;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
-import net.minecraft.util.ARGB;
 import net.minecraft.world.entity.Mob;
 
 import javax.annotation.Nullable;
@@ -36,26 +29,16 @@ import java.util.Optional;
  * Base renderer for mobs drawn from a .blockymodel
  *
  * @param <T> the entity type
- * @param <S> the render state type
  */
-public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntityRenderState>
-        extends MobRenderer<T, S, BlockyPlaceholderModel<S>> {
-
-    // Vanilla puts the model origin this far above the feet
-    private static final float VANILLA_MODEL_OFFSET = 1.501F;
-    // Vanilla's tint for translucent entities
-    private static final int TRANSLUCENT_TINT = 654311423;
+public abstract class HytaleEntityRenderer<T extends Mob> extends MobRenderer<T, BlockyEntityModel<T>> {
 
     // Renderers are recreated on resource reload so these stay fresh
-    private final Map<ResourceLocation, Optional<Prepared>> preparedCache = new HashMap<>();
+    private final Map<ResourceLocation, Optional<PreparedBlockyModel>> preparedCache = new HashMap<>();
     private final Map<ResourceLocation, Optional<BlockyAnimationPlayer>> animationCache = new HashMap<>();
 
-    // Set during submit so getRenderType can use them
-    private PoseStack activePoseStack;
-    private SubmitNodeCollector activeCollector;
-
     protected HytaleEntityRenderer(EntityRendererProvider.Context context, float shadowRadius) {
-        super(context, new BlockyPlaceholderModel<>(), shadowRadius);
+        super(context, new BlockyEntityModel<>(), shadowRadius);
+        this.model.bind(this);
     }
 
     /**
@@ -84,94 +67,37 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
     }
 
     /**
-     * Poses the model for this frame like vanilla's setupAnim
+     * Poses the model for this frame, the same values vanilla passes to a model's setupAnim
      * Everything added to the pose is layered on the rest pose
      *
-     * @param renderState the entity's render state
-     * @param pose        the pose to add to
+     * @param entity          the entity being rendered
+     * @param pose            the pose to add to
+     * @param limbSwing       how far the entity has walked, for leg swing
+     * @param limbSwingAmount how fast the entity is walking, from 0 to 1
+     * @param ageInTicks      the age of the entity in ticks, including the partial tick
+     * @param netHeadYaw      the head yaw relative to the body, in degrees
+     * @param headPitch       the head pitch, in degrees
      */
-    protected void setupAnim(S renderState, BlockyPose pose) {
+    protected void setupAnim(T entity, BlockyPose pose, float limbSwing, float limbSwingAmount, float ageInTicks,
+                             float netHeadYaw, float headPitch) {
     }
 
     @Override
-    public void extractRenderState(T entity, S renderState, float partialTick) {
-        super.extractRenderState(entity, renderState, partialTick);
-        renderState.modelNamespace = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).getNamespace();
-        renderState.modelName = getModelName(entity);
+    public ResourceLocation getTextureLocation(T entity) {
+        return getEntityTexture(getNamespace(entity), getModelName(entity));
     }
 
     @Override
-    public void submit(S renderState, PoseStack poseStack, SubmitNodeCollector collector,
-                       CameraRenderState cameraRenderState) {
-        this.activePoseStack = poseStack;
-        this.activeCollector = collector;
-        try {
-            super.submit(renderState, poseStack, collector, cameraRenderState);
-        } finally {
-            this.activePoseStack = null;
-            this.activeCollector = null;
+    @Nullable
+    protected RenderType getRenderType(T entity, boolean bodyVisible, boolean translucent, boolean glowing) {
+        ResourceLocation texture = getTextureLocation(entity);
+        if (translucent) {
+            return RenderType.itemEntityTranslucentCull(texture);
         }
-    }
-
-    @Override
-    protected @Nullable RenderType getRenderType(S renderState, boolean visible, boolean translucent, boolean glowing) {
-        // Returning null makes vanilla skip its own model
-        if (activePoseStack != null && activeCollector != null && (visible || translucent)) {
-            submitBlockyModel(renderState, translucent);
+        if (bodyVisible) {
+            return createRenderType(texture);
         }
-        return null;
-    }
-
-    private void submitBlockyModel(S renderState, boolean translucent) {
-        Prepared prepared = getOrPrepare(renderState.modelNamespace, renderState.modelName);
-        if (prepared == null) {
-            return;
-        }
-
-        BlockyPose pose = new BlockyPose();
-        setupAnim(renderState, pose);
-
-        PoseStack poseStack = activePoseStack;
-        poseStack.pushPose();
-
-        // Undo vanilla's flipped model space
-        poseStack.translate(0.0F, VANILLA_MODEL_OFFSET, 0.0F);
-        poseStack.scale(-1.0F, -1.0F, 1.0F);
-        // Vanilla models face -Z, Blocky models face +Z
-        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F));
-
-        float modelScale = getModelScale();
-        poseStack.scale(modelScale, modelScale, modelScale);
-
-        RenderType renderType = translucent
-                ? RenderTypes.itemEntityTranslucentCull(getTextureLocation(renderState))
-                : prepared.renderType();
-        int overlay = getOverlayCoords(renderState, getWhiteOverlayProgress(renderState));
-        int tint = ARGB.multiply(translucent ? TRANSLUCENT_TINT : -1, getModelTint(renderState));
-
-        prepared.model().submit(poseStack, activeCollector, renderType, renderState.lightCoords, overlay, tint, pose);
-
-        poseStack.popPose();
-    }
-
-    @Override
-    public ResourceLocation getTextureLocation(S renderState) {
-        return getEntityTexture(renderState.modelNamespace, renderState.modelName);
-    }
-
-    /**
-     * Loads a keyframe animation for the entity's model, cached per renderer
-     *
-     * @param renderState   the entity's render state
-     * @param animationName the animation's file name without extension. Must be lower-case
-     * @return the animation, or null if it is missing or invalid
-     */
-    protected @Nullable BlockyAnimationPlayer getAnimation(S renderState, String animationName) {
-        ResourceLocation location = getAnimationLocation(renderState.modelNamespace, renderState.modelName, animationName);
-        return animationCache.computeIfAbsent(location, id -> {
-            BlockyAnimationDefinition definition = BlockyAnimationLoader.INSTANCE.loadAnimation(id);
-            return Optional.ofNullable(definition).map(BlockyAnimationPlayer::new);
-        }).orElse(null);
+        return glowing ? RenderType.outline(texture) : null;
     }
 
     /**
@@ -181,7 +107,22 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
      * @return the render type
      */
     protected RenderType createRenderType(ResourceLocation texture) {
-        return RenderTypes.entityCutout(texture);
+        return RenderType.entityCutout(texture);
+    }
+
+    /**
+     * Loads a keyframe animation for the entity's model, cached per renderer
+     *
+     * @param entity        the entity being rendered
+     * @param animationName the animation's file name without extension. Must be lower-case
+     * @return the animation, or null if it is missing or invalid
+     */
+    @Nullable
+    protected BlockyAnimationPlayer getAnimation(T entity, String animationName) {
+        ResourceLocation location = getAnimationLocation(getNamespace(entity), getModelName(entity), animationName);
+        return animationCache.computeIfAbsent(location, id ->
+                Optional.ofNullable(BlockyAnimationLoader.INSTANCE.loadAnimation(id)).map(BlockyAnimationPlayer::new)
+        ).orElse(null);
     }
 
     protected ResourceLocation getModelLocation(String namespace, String modelName) {
@@ -200,15 +141,19 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
                 "animations/" + modelName + "/" + animationName + ".blockyanim");
     }
 
-    private Prepared getOrPrepare(String namespace, String modelName) {
-        if (namespace == null || modelName == null) {
-            return null;
-        }
+    private String getNamespace(T entity) {
+        return BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).getNamespace();
+    }
+
+    @Nullable
+    PreparedBlockyModel getPrepared(T entity) {
+        String namespace = getNamespace(entity);
+        String modelName = getModelName(entity);
         ResourceLocation key = ResourceLocation.fromNamespaceAndPath(namespace, modelName);
         return preparedCache.computeIfAbsent(key, id -> prepare(namespace, modelName)).orElse(null);
     }
 
-    private Optional<Prepared> prepare(String namespace, String modelName) {
+    private Optional<PreparedBlockyModel> prepare(String namespace, String modelName) {
         ResourceLocation modelLocation = getModelLocation(namespace, modelName);
         ResourceLocation texture = getEntityTexture(namespace, modelName);
         try {
@@ -216,9 +161,7 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
                     new BlockyModelGeometry.Settings(modelLocation));
 
             int[] size = readPngSize(texture);
-            PreparedBlockyModel model = PreparedBlockyModel.create(geometry, UVRegion.fullTexture(size[0], size[1]));
-
-            return Optional.of(new Prepared(model, createRenderType(texture)));
+            return Optional.of(PreparedBlockyModel.create(geometry, UVRegion.fullTexture(size[0], size[1])));
         } catch (Exception e) {
             // Cached as empty so it only logs once
             HytaleModelLoader.LOGGER.error("Failed to prepare model {} with texture {}: {}",
@@ -242,8 +185,5 @@ public abstract class HytaleEntityRenderer<T extends Mob, S extends HytaleEntity
             in.skipNBytes(16);
             return new int[]{in.readInt(), in.readInt()};
         }
-    }
-
-    private record Prepared(PreparedBlockyModel model, RenderType renderType) {
     }
 }
