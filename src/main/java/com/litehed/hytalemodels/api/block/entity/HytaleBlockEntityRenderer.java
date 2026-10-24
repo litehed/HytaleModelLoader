@@ -11,22 +11,17 @@ import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationLoader;
 import com.litehed.hytalemodels.blockymodel.animations.BlockyAnimationPlayer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
-import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.client.renderer.state.CameraRenderState;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.Material;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -37,78 +32,56 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S extends HytaleBlockEntityRenderState>
-        implements BlockEntityRenderer<T, S> {
+public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity> implements BlockEntityRenderer<T> {
 
-    private final Map<Identifier, Optional<BlockyModelGeometry>> geometryCache = new HashMap<>();
-    private final Map<Identifier, Optional<BlockyAnimationPlayer>> playerCache = new HashMap<>();
+    // Blockyanim time units that pass per animation tick
+    private static final float ANIMATION_UNITS_PER_TICK = 4.0f;
+
+    private final Map<ResourceLocation, Optional<BlockyModelGeometry>> geometryCache = new HashMap<>();
+    private final Map<ResourceLocation, Optional<BlockyAnimationPlayer>> playerCache = new HashMap<>();
 
     public HytaleBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
     }
 
     @Override
-    public void extractRenderState(T blockEntity, S renderState, float partialTick,
-                                   Vec3 cameraPosition, ModelFeatureRenderer.CrumblingOverlay breakProgress) {
-        BlockEntityRenderer.super.extractRenderState(blockEntity, renderState, partialTick, cameraPosition, breakProgress);
-
-        renderState.modelName = blockEntity.getModelName();
-        renderState.modelNamespace = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity.getType()).getNamespace();
-        renderState.animationTick = blockEntity.getAnimationTick();
-        renderState.partialTick = partialTick;
-        renderState.ageInTicks = (blockEntity.getAnimationTick() + partialTick) * 4;
-
-        if (blockEntity.getLevel() != null) {
-            BlockState blockState = blockEntity.getLevel().getBlockState(blockEntity.getBlockPos());
-            if (blockState.hasProperty(HytaleBlockBase.FACING)) {
-                renderState.facing = blockState.getValue(HytaleBlockBase.FACING);
-            }
-        }
-
-        extractAdditionalRenderState(blockEntity, renderState, partialTick);
-    }
-
-    /**
-     * Copies extra data from the block entity into the render state
-     *
-     * @param blockEntity the block entity being rendered
-     * @param renderState the render state to fill
-     * @param partialTick the current partial tick
-     */
-    protected void extractAdditionalRenderState(T blockEntity, S renderState, float partialTick) {
-    }
-
-    @Override
-    public void submit(S renderState, PoseStack poseStack, SubmitNodeCollector submitNodeCollector,
-                       CameraRenderState cameraRenderState) {
-        if (renderState.modelName == null) {
+    public void render(T blockEntity, float partialTick, PoseStack poseStack, MultiBufferSource bufferSource,
+                       int packedLight, int packedOverlay) {
+        String modelName = blockEntity.getModelName();
+        if (modelName == null) {
             return;
         }
 
-        Identifier modelLocation = getModelLocation(renderState.modelNamespace, renderState.modelName);
+        String namespace = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity.getType()).getNamespace();
+
+        ResourceLocation modelLocation = getModelLocation(namespace, modelName);
         BlockyModelGeometry geometry = getOrLoadGeometry(modelLocation);
         if (geometry == null) {
             return;
         }
 
-        Material textureMaterial = getTextureMaterial(renderState.modelNamespace, renderState.modelName);
-        TextureAtlasSprite sprite = Minecraft.getInstance()
-                .getAtlasManager().get(textureMaterial);
+        TextureAtlasSprite sprite = getTextureMaterial(namespace, modelName).sprite();
+
+        BlockState blockState = blockEntity.getBlockState();
+        Direction facing = blockState.hasProperty(HytaleBlockBase.FACING) ? blockState.getValue(HytaleBlockBase.FACING) : null;
+
+        float ageInTicks = (blockEntity.getAnimationTick() + partialTick) * ANIMATION_UNITS_PER_TICK;
+        Map<String, NodeTransform> nodeTransforms = calculateAnimationTransforms(blockEntity, ageInTicks, geometry);
+
+        VertexConsumer buffer = bufferSource.getBuffer(getRenderType());
 
         poseStack.pushPose();
 
         poseStack.translate(0.5, 0.5, 0.5);
 
-        float yRotDegrees = getFacingYRotation(renderState.facing);
+        float yRotDegrees = getFacingYRotation(facing);
         if (yRotDegrees != 0f) {
             poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(yRotDegrees)));
         }
 
-        Map<String, NodeTransform> nodeTransforms = calculateAnimationTransforms(renderState, geometry);
-
         List<BlockyModelGeometry.BlockyNode> nodes = geometry.getNodes();
         for (BlockyModelGeometry.BlockyNode node : nodes) {
             if (node.hasShape()) {
-                renderNode(poseStack, submitNodeCollector, node, sprite, nodeTransforms, renderState.lightCoords);
+                renderNode(poseStack, buffer, node, sprite, nodeTransforms, packedLight);
             }
         }
 
@@ -136,11 +109,13 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
     /**
      * Works out the transform of each node for this frame
      *
-     * @param renderState the render state with the animation time
+     * @param blockEntity the block entity being rendered
+     * @param ageInTicks  the animation time in blockyanim units
      * @param geometry    the model being rendered
      * @return transforms keyed by node id or name
      */
-    protected abstract Map<String, NodeTransform> calculateAnimationTransforms(S renderState, BlockyModelGeometry geometry);
+    protected abstract Map<String, NodeTransform> calculateAnimationTransforms(T blockEntity, float ageInTicks,
+                                                                               BlockyModelGeometry geometry);
 
     /**
      * Location of the model file
@@ -149,8 +124,8 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
      * @param modelName the name of the model
      * @return the location of the .blockymodel file
      */
-    protected Identifier getModelLocation(String namespace, String modelName) {
-        return Identifier.fromNamespaceAndPath(namespace, "models/" + modelName + ".blockymodel");
+    protected ResourceLocation getModelLocation(String namespace, String modelName) {
+        return ResourceLocation.fromNamespaceAndPath(namespace, "models/" + modelName + ".blockymodel");
     }
 
     /**
@@ -162,10 +137,10 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
      */
     protected Material getTextureMaterial(String namespace, String modelName) {
         return new Material(TextureAtlas.LOCATION_BLOCKS,
-                Identifier.fromNamespaceAndPath(namespace, "block/" + modelName + "_texture"));
+                ResourceLocation.fromNamespaceAndPath(namespace, "block/" + modelName + "_texture"));
     }
 
-    private void renderNode(PoseStack poseStack, SubmitNodeCollector collector,
+    private void renderNode(PoseStack poseStack, VertexConsumer buffer,
                             BlockyModelGeometry.BlockyNode node, TextureAtlasSprite sprite,
                             Map<String, NodeTransform> nodeTransforms, int lightCoords) {
         NodeTransform transform = findTransform(nodeTransforms, node);
@@ -181,8 +156,6 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         Vector3f min = new Vector3f(-halfSizes.x, -halfSizes.y, -halfSizes.z);
         Vector3f max = new Vector3f(halfSizes.x, halfSizes.y, halfSizes.z);
 
-        RenderType renderType = getRenderType();
-
         for (Direction direction : Direction.values()) {
             if (!shape.hasTextureLayout(direction)) {
                 continue;
@@ -191,15 +164,13 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
             BlockyModelGeometry.FaceTextureLayout texLayout = shape.getTextureLayout(direction);
             boolean shouldReverse = shape.needsWindingReversal();
 
-            collector.submitCustomGeometry(poseStack, renderType, (pose, buffer) ->
-                    renderQuad(buffer, pose, direction, min, max, sprite, texLayout,
-                            shape.getOriginalSize(), lightCoords, shouldReverse));
+            renderQuad(buffer, poseStack.last(), direction, min, max, sprite, texLayout,
+                    shape.getOriginalSize(), lightCoords, shouldReverse);
 
             // Render backface if double-sided
             if (shape.isDoubleSided()) {
-                collector.submitCustomGeometry(poseStack, renderType, (pose, buffer) ->
-                        renderQuad(buffer, pose, direction, min, max, sprite, texLayout,
-                                shape.getOriginalSize(), lightCoords, !shouldReverse));
+                renderQuad(buffer, poseStack.last(), direction, min, max, sprite, texLayout,
+                        shape.getOriginalSize(), lightCoords, !shouldReverse);
             }
         }
 
@@ -212,7 +183,7 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
      * @return the render type
      */
     protected RenderType getRenderType() {
-        return RenderTypes.cutoutMovingBlock();
+        return RenderType.cutout();
     }
 
     private void applyNodeTransform(PoseStack poseStack, BlockyModelGeometry.BlockyNode node,
@@ -377,7 +348,7 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
         }
     }
 
-    private BlockyModelGeometry getOrLoadGeometry(Identifier modelLocation) {
+    private BlockyModelGeometry getOrLoadGeometry(ResourceLocation modelLocation) {
         return geometryCache.computeIfAbsent(modelLocation, location -> {
             try {
                 return Optional.of(BlockyModelLoader.INSTANCE.loadGeometry(new BlockyModelGeometry.Settings(location)));
@@ -395,7 +366,7 @@ public abstract class HytaleBlockEntityRenderer<T extends HytaleBlockEntity, S e
      * @param animId the location of the animation file
      * @return the player, or null if the animation can't be loaded
      */
-    protected BlockyAnimationPlayer getOrCreatePlayer(Identifier animId) {
+    protected BlockyAnimationPlayer getOrCreatePlayer(ResourceLocation animId) {
         return playerCache.computeIfAbsent(animId, id ->
                 Optional.ofNullable(BlockyAnimationLoader.INSTANCE.loadAnimation(id)).map(BlockyAnimationPlayer::new)
         ).orElse(null);

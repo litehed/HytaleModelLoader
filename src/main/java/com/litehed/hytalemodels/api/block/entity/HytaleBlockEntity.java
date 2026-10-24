@@ -1,11 +1,11 @@
 package com.litehed.hytalemodels.api.block.entity;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
 
 public abstract class HytaleBlockEntity extends BlockEntity {
 
@@ -35,31 +35,33 @@ public abstract class HytaleBlockEntity extends BlockEntity {
     public abstract int getAnimationTick();
 
     @Override
-    protected void loadAdditional(ValueInput input) {
-        super.loadAdditional(input);
-        loadAnimationData(input);
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
+        loadAnimationData(tag, registries);
     }
 
     @Override
-    protected void saveAdditional(ValueOutput output) {
-        super.saveAdditional(output);
-        saveAnimationData(output);
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
+        saveAnimationData(tag, registries);
     }
 
     /**
      * Override to load your own animation state, called from loadAdditional
      *
-     * @param input the value input to read from
+     * @param tag        the data to read from
+     * @param registries the registries, for data that needs them
      */
-    protected void loadAnimationData(ValueInput input) {
+    protected void loadAnimationData(CompoundTag tag, HolderLookup.Provider registries) {
     }
 
     /**
      * Override to save your own animation state, called from saveAdditional
      *
-     * @param output the value output to write to
+     * @param tag        the data to write to
+     * @param registries the registries, for data that needs them
      */
-    protected void saveAnimationData(ValueOutput output) {
+    protected void saveAnimationData(CompoundTag tag, HolderLookup.Provider registries) {
     }
 
     @Override
