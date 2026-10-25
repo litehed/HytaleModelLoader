@@ -10,7 +10,7 @@ public class HytaleBlockEntityRenderState extends BlockEntityRenderState {
     public int animationTick;
     public float partialTick;
     /**
-     * Animation time in blockyanim units, (animationTick + partialTick) * 4
+     * Animation time in blockyanim units, (animationTick + partialTick) times the animation units per tick
      * Pass it to BlockyAnimationPlayer when sampling keyframes
      */
     public float ageInTicks;

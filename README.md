@@ -55,7 +55,7 @@ Refer to the wiki to learn how to create and animate your models.
 
 - [x] Implement entity model loading
 - [x] Entity docs for v2 release
-- [x] Add animation support for com.litehed.hytalemodels.entities
+- [x] Add animation support entities
 - [x] Animation docs
 - [x] Final code cleanup
 
@@ -66,8 +66,8 @@ Refer to the wiki to learn how to create and animate your models.
 
 ### Future Ports
 
+- [x] 1.21.1 NeoForge
 - [ ] 1.20.1 Forge
-- [ ] 1.21.1 NeoForge
 
 ## Contributing
 

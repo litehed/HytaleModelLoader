@@ -13,6 +13,5 @@ public class HytaleModelLoader {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public HytaleModelLoader(IEventBus modEventBus, ModContainer modContainer) {
-
     }
 }
