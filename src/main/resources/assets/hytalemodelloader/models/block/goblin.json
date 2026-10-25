@@ -1,0 +1,9 @@
+{
+  "loader": "hytalemodelloader:blockymodel_loader",
+  "model": "hytalemodelloader:models/goblin.blockymodel",
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "texture": "hytalemodelloader:block/goblin_texture",
+    "particle": "hytalemodelloader:block/goblin_texture"
+  }
+}

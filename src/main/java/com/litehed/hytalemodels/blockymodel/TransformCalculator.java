@@ -4,17 +4,18 @@ import com.mojang.math.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-public class TransformCalculator {
+public final class TransformCalculator {
 
-    private static final float POSITION_SCALE = 32.0f;      // Convert from model units to block units
-    private static final float POSITION_OFFSET_Y = 16.0f;   // Y-axis offset
+    // Model units in one block
+    public static final float UNITS_PER_BLOCK = 32.0f;
+    // Half a block in model units, taken off Y so models sit in the middle of a block
+    public static final float ORIGIN_Y_OFFSET = 16.0f;
 
     /**
-     * Calculate the world-space position of a node
-     * Recursively adds parent positions and applies parent orientations
+     * Position of a node in model space, including parents
      *
-     * @param node the node to calculate the world position for
-     * @return the world-space position of the node
+     * @param node the node
+     * @return the position in model units
      */
     public static Vector3f calculateWorldPosition(BlockyModelGeometry.BlockyNode node) {
         Vector3f worldPos = new Vector3f(node.getPosition());
@@ -38,8 +39,7 @@ public class TransformCalculator {
     }
 
     /**
-     * Calculate the world-space orientation of a node
-     * Recursively combines parent orientations
+     * Orientation of a node in model space, including parents
      *
      * @param node the node to calculate the world orientation for
      * @return the world-space orientation of the node
@@ -49,7 +49,6 @@ public class TransformCalculator {
 
         BlockyModelGeometry.BlockyNode current = node.getParent();
         while (current != null) {
-            // Compose rotations: parent * child
             worldRot = new Quaternionf(current.getOrientation()).mul(worldRot);
             current = current.getParent();
         }
@@ -58,12 +57,12 @@ public class TransformCalculator {
     }
 
     /**
-     * Create a Transformation for a node given its world position, shape offset, and world orientation
+     * Transformation that places a node's shape in a block
      *
-     * @param worldPosition    the world-space position of the node
-     * @param shapeOffset      the offset of the shape relative to the node's position
-     * @param worldOrientation the world-space orientation of the node
-     * @return a Transformation object representing the node's transform in world space
+     * @param worldPosition    the position of the node in model units
+     * @param shapeOffset      the offset of the shape from the node
+     * @param worldOrientation the orientation of the node
+     * @return the transformation, in blocks
      */
     public static Transformation createNodeTransform(Vector3f worldPosition, Vector3f shapeOffset,
                                                      Quaternionf worldOrientation) {
@@ -71,31 +70,24 @@ public class TransformCalculator {
         Vector3f rotatedOffset = new Vector3f(shapeOffset);
         worldOrientation.transform(rotatedOffset);
 
-        // Calculate center position in block coordinates
-        float centerX = (worldPosition.x + rotatedOffset.x) / POSITION_SCALE;
-        float centerY = (worldPosition.y + rotatedOffset.y - POSITION_OFFSET_Y) / POSITION_SCALE;
-        float centerZ = (worldPosition.z + rotatedOffset.z) / POSITION_SCALE;
+        float centerX = (worldPosition.x + rotatedOffset.x) / UNITS_PER_BLOCK;
+        float centerY = (worldPosition.y + rotatedOffset.y - ORIGIN_Y_OFFSET) / UNITS_PER_BLOCK;
+        float centerZ = (worldPosition.z + rotatedOffset.z) / UNITS_PER_BLOCK;
 
-        return new Transformation(
-                new Vector3f(centerX, centerY, centerZ),     // Translation
-                worldOrientation,                            // Rotation
-                new Vector3f(1),                          // Scale (no scaling)
-                null                                         // No additional rotation
-        );
+        return new Transformation(new Vector3f(centerX, centerY, centerZ), worldOrientation, new Vector3f(1), null);
     }
 
     /**
-     * Calculate half-sizes for a shape given its full size
+     * Half of a shape's size, in blocks
      *
-     * @param size the full size of the shape
-     * @return the half-sizes of the shape
+     * @param size the full size of the shape in model units
+     * @return the half size in blocks
      */
     public static Vector3f calculateHalfSizes(Vector3f size) {
         return new Vector3f(
-                (size.x / 2) / POSITION_SCALE,
-                (size.y / 2) / POSITION_SCALE,
-                (size.z / 2) / POSITION_SCALE
+                (size.x / 2) / UNITS_PER_BLOCK,
+                (size.y / 2) / UNITS_PER_BLOCK,
+                (size.z / 2) / UNITS_PER_BLOCK
         );
     }
-
 }

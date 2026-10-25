@@ -4,6 +4,7 @@ import java.util.List;
 
 public final class NodeAnimationTrack {
 
+    // A node name or id, animation files use either
     private final String nodeId;
     private final AnimationTrackType trackType;
     private final List<BlockyKeyframe> keyframes;
@@ -11,7 +12,7 @@ public final class NodeAnimationTrack {
     public NodeAnimationTrack(String nodeId, AnimationTrackType trackType, List<BlockyKeyframe> keyframes) {
         this.nodeId = nodeId;
         this.trackType = trackType;
-        this.keyframes = List.copyOf(keyframes); // Immutable copy
+        this.keyframes = List.copyOf(keyframes);
     }
 
     public String getNodeId() {
@@ -26,9 +27,6 @@ public final class NodeAnimationTrack {
         return keyframes;
     }
 
-    /**
-     * Enum representing different types of animation tracks
-     */
     public enum AnimationTrackType {
         POSITION("position"),
         ORIENTATION("orientation"),
@@ -42,25 +40,17 @@ public final class NodeAnimationTrack {
             this.jsonKey = jsonKey;
         }
 
-        public String getJsonKey() {
-            return jsonKey;
-        }
-
+        /**
+         * @param key the track name used in animation files
+         * @return the matching track type, or null if there is none
+         */
         public static AnimationTrackType fromJsonKey(String key) {
-            return switch (key) {
-                case "position" -> POSITION;
-                case "orientation" -> ORIENTATION;
-                case "shapeStretch" -> SHAPE_STRETCH;
-                case "shapeVisible" -> SHAPE_VISIBLE;
-                case "shapeUvOffset" -> SHAPE_UV_OFFSET;
-                default -> null;
-            };
+            for (AnimationTrackType type : values()) {
+                if (type.jsonKey.equals(key)) {
+                    return type;
+                }
+            }
+            return null;
         }
     }
 }
-
-
-
-
-
-

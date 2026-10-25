@@ -11,32 +11,26 @@ public abstract class HytaleBlockEntity extends BlockEntity {
 
     private final String modelName;
 
-
     public HytaleBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state, String modelName) {
         super(type, pos, state);
         this.modelName = modelName;
-
     }
 
     /**
-     * Returns the name of the Blocky model used to render this block entity.
-     * This is used to locate the {@code .blockymodel} file and the associated texture.
+     * Name of the model, used to find the .blockymodel file and its texture
      *
-     * @return the model name; never null or blank
+     * @return the model name
      */
     public String getModelName() {
         return modelName;
     }
 
     /**
-     * Returns the current animation tick for this block entity.
+     * Animation tick of this block entity
+     * Increase it every game tick, for example from your ticker
+     * The renderer multiplies it by 4 to match blockyanim speed
      *
-     * <p>This value is used alongside the partial tick to compute smooth animation playback.
-     * Internally, it is multiplied by 4 before being passed to the animation system to match
-     * Blockyanims expected animation speed. Increment this each game tick in your static
-     * {@code tick()} method for continuous animations.
-     *
-     * @return the current animation tick; must be a non-negative integer
+     * @return the current animation tick
      */
     public abstract int getAnimationTick();
 
@@ -52,29 +46,20 @@ public abstract class HytaleBlockEntity extends BlockEntity {
         saveAnimationData(output);
     }
 
-
     /**
-     * Override this method to load custom animation or state data from NBT/storage on world load.
-     * Called automatically during {@link #loadAdditional}.
-     *
-     * <p>Default implementation does nothing.
+     * Override to load your own animation state, called from loadAdditional
      *
      * @param input the value input to read from
      */
     protected void loadAnimationData(ValueInput input) {
-        // Default implementation does nothing
     }
 
     /**
-     * Override this method to save custom animation or state data to NBT/storage for persistence.
-     * Called automatically during {@link #saveAdditional}.
-     *
-     * <p>Default implementation does nothing.
+     * Override to save your own animation state, called from saveAdditional
      *
      * @param output the value output to write to
      */
     protected void saveAnimationData(ValueOutput output) {
-        // Default implementation does nothing
     }
 
     @Override

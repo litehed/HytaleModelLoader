@@ -3,10 +3,10 @@ package com.litehed.hytalemodels.blockymodel.animations;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-public class BlockyKeyframe {
+public abstract class BlockyKeyframe {
 
-    protected final float time;
-    protected final InterpolationType interpolationType;
+    private final float time;
+    private final InterpolationType interpolationType;
 
     protected BlockyKeyframe(float time, InterpolationType interpolationType) {
         this.time = time;
@@ -21,16 +21,29 @@ public class BlockyKeyframe {
         return interpolationType;
     }
 
-    public static final class PositionKeyframe extends BlockyKeyframe {
+    // Keyframes that hold a vector, such as position and scale
+    public abstract static class VectorKeyframe extends BlockyKeyframe {
         private final Vector3f delta;
 
-        public PositionKeyframe(float time, Vector3f delta, InterpolationType interpolationType) {
+        protected VectorKeyframe(float time, Vector3f delta, InterpolationType interpolationType) {
             super(time, interpolationType);
             this.delta = new Vector3f(delta);
         }
 
         public Vector3f getDelta() {
             return new Vector3f(delta);
+        }
+    }
+
+    public static final class PositionKeyframe extends VectorKeyframe {
+        public PositionKeyframe(float time, Vector3f delta, InterpolationType interpolationType) {
+            super(time, delta, interpolationType);
+        }
+    }
+
+    public static final class ScaleKeyframe extends VectorKeyframe {
+        public ScaleKeyframe(float time, Vector3f delta, InterpolationType interpolationType) {
+            super(time, delta, interpolationType);
         }
     }
 
@@ -47,19 +60,6 @@ public class BlockyKeyframe {
         }
     }
 
-    public static final class ScaleKeyframe extends BlockyKeyframe {
-        private final Vector3f delta;
-
-        public ScaleKeyframe(float time, Vector3f delta, InterpolationType interpolationType) {
-            super(time, interpolationType);
-            this.delta = new Vector3f(delta);
-        }
-
-        public Vector3f getDelta() {
-            return new Vector3f(delta);
-        }
-    }
-
     public static final class VisibilityKeyframe extends BlockyKeyframe {
         private final boolean visible;
 
@@ -73,9 +73,7 @@ public class BlockyKeyframe {
         }
     }
 
-    /**
-     * Interpolation type enum for animation curves
-     */
+    // How a keyframe blends into the next one
     public enum InterpolationType {
         LINEAR,
         SMOOTH

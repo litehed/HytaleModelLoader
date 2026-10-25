@@ -1,8 +1,6 @@
 package com.litehed.hytalemodels.blockymodel;
 
-import com.google.common.collect.Lists;
 import com.mojang.math.Transformation;
-import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.block.model.TextureSlots;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.ModelBaker;
@@ -14,54 +12,32 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.context.ContextMap;
 import net.neoforged.neoforge.client.model.ExtendedUnbakedGeometry;
 import net.neoforged.neoforge.client.model.NeoForgeModelProperties;
-import org.apache.commons.lang3.tuple.Pair;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import java.util.*;
 
-import static com.litehed.hytalemodels.blockymodel.QuadBuilder.DEBUG_BORDERS;
-
 public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
 
     private final List<BlockyNode> nodes;
-    private final Identifier modelLocation;
 
-    public BlockyModelGeometry(Settings settings) {
-        this.nodes = Lists.newArrayList();
-        this.modelLocation = settings.modelLocation();
-    }
-
-    public BlockyModelGeometry(List<BlockyNode> nodes, Identifier modelLocation) {
+    public BlockyModelGeometry(List<BlockyNode> nodes) {
         this.nodes = nodes;
-        this.modelLocation = modelLocation;
     }
 
     /**
-     * Parses a BlockyModelGeometry from the given tokenizer and settings
+     * Parses a model file
      *
-     * @param tokenizer the tokenizer to use for parsing
-     * @param settings  the settings to use for parsing
-     * @return a new BlockyModelGeometry instance
+     * @param tokenizer the tokenizer holding the model file
+     * @return the parsed geometry
      */
-    public static BlockyModelGeometry parse(BlockyTokenizer tokenizer, Settings settings) {
-        List<BlockyNode> nodes = BlockyModelParser.parseNodes(tokenizer.getRoot());
-        return new BlockyModelGeometry(nodes, settings.modelLocation());
+    public static BlockyModelGeometry parse(BlockyTokenizer tokenizer) {
+        return new BlockyModelGeometry(BlockyModelParser.parseNodes(tokenizer.getRoot()));
     }
 
-
-    /**
-     * Bakes the model into a QuadCollection for rendering
-     *
-     * @param textureSlots   the texture slots for this model
-     * @param modelBaker     the model baker instance
-     * @param modelState     the model state (transformations)
-     * @param modelDebugName the debug name for this model
-     * @param contextMap     the context map for additional properties
-     * @return the baked QuadCollection
-     */
     @Override
-    public QuadCollection bake(TextureSlots textureSlots, ModelBaker modelBaker, ModelState modelState, ModelDebugName modelDebugName, ContextMap contextMap) {
+    public QuadCollection bake(TextureSlots textureSlots, ModelBaker modelBaker, ModelState modelState,
+                               ModelDebugName modelDebugName, ContextMap contextMap) {
         QuadCollection.Builder builder = new QuadCollection.Builder();
         Transformation rootTransform = contextMap.getOrDefault(
                 NeoForgeModelProperties.TRANSFORM,
@@ -72,32 +48,20 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
                 ? modelState.transformation()
                 : modelState.transformation().compose(rootTransform);
 
+        TextureAtlasSprite sprite = modelBaker.sprites().resolveSlot(textureSlots, "texture", modelDebugName);
+
         for (BlockyNode node : nodes) {
             if (node.hasShape()) {
-                bakeNode(builder, node, textureSlots, modelBaker, finalTransform, modelDebugName);
+                bakeNode(builder, node, sprite, finalTransform);
             }
         }
 
         return builder.build();
     }
 
-    /**
-     * Bakes a single BlockyNode into the QuadCollection builder
-     *
-     * @param builder        the QuadCollection.Builder to add quads to
-     * @param node           the BlockyNode to bake
-     * @param textureSlots   the texture slots for this model
-     * @param modelBaker     the model baker instance
-     * @param modelTransform the combined transformation for this model
-     * @param modelDebugName the debug name for this model
-     */
-    private void bakeNode(QuadCollection.Builder builder, BlockyNode node,
-                          TextureSlots textureSlots, ModelBaker modelBaker,
-                          Transformation modelTransform, ModelDebugName modelDebugName) {
-
+    private void bakeNode(QuadCollection.Builder builder, BlockyNode node, TextureAtlasSprite sprite,
+                          Transformation modelTransform) {
         BlockyShape shape = node.getShape();
-        TextureAtlasSprite sprite = modelBaker.sprites()
-                .resolveSlot(textureSlots, "texture", modelDebugName);
 
         Vector3f worldPos = TransformCalculator.calculateWorldPosition(node);
         Quaternionf worldRot = TransformCalculator.calculateWorldOrientation(node);
@@ -110,19 +74,16 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
                 new Vector3f(0.5f, 0.5f, 0.5f), null, null, null
         );
 
-        Transformation finalTransform;
-        if (modelTransform.isIdentity()) {
-            finalTransform = centerTranslate.compose(nodeTransform);
-        } else {
-            finalTransform = centerTranslate.compose(modelTransform).compose(nodeTransform);
-        }
+        Transformation finalTransform = modelTransform.isIdentity()
+                ? centerTranslate.compose(nodeTransform)
+                : centerTranslate.compose(modelTransform).compose(nodeTransform);
 
-        // Bounds
         Vector3f halfSizes = TransformCalculator.calculateHalfSizes(shape.getSize());
         Vector3f min = new Vector3f(-halfSizes.x, -halfSizes.y, -halfSizes.z);
         Vector3f max = new Vector3f(halfSizes.x, halfSizes.y, halfSizes.z);
 
-        // Generate quads for each face
+        boolean reversed = shape.needsWindingReversal();
+
         for (Direction direction : Direction.values()) {
             if (!shape.hasTextureLayout(direction)) {
                 continue;
@@ -130,56 +91,14 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
 
             FaceTextureLayout texLayout = shape.getTextureLayout(direction);
 
-            boolean shouldReverse = shape.needsWindingReversal();
+            builder.addUnculledFace(QuadBuilder.createQuad(
+                    direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform, reversed));
 
-            Pair<BakedQuad, Direction> quad;
-            if (shouldReverse) {
-                quad = QuadBuilder.createReversedQuad(
-                        direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform);
-            } else {
-                quad = QuadBuilder.createQuad(
-                        direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform);
-            }
-
-            addQuadToBuilder(builder, quad);
-
-            // Debug quads
-            if (DEBUG_BORDERS) {
-                List<BakedQuad> borderQuads = QuadBuilder.createBorderQuads(
-                        direction, min, max, sprite, finalTransform
-                );
-                for (BakedQuad borderQuad : borderQuads) {
-                    builder.addUnculledFace(borderQuad);
-                }
-            }
-
-            // Backface if double-sided
+            // Back face winds the other way
             if (shape.isDoubleSided()) {
-                Pair<BakedQuad, Direction> backQuad;
-                if (shouldReverse) {
-                    // If winding is reversed, backface should be normal
-                    backQuad = QuadBuilder.createQuad(
-                            direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform);
-                } else {
-                    backQuad = QuadBuilder.createReversedQuad(
-                            direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform);
-                }
-                builder.addUnculledFace(backQuad.getLeft());
+                builder.addUnculledFace(QuadBuilder.createQuad(
+                        direction, min, max, sprite, texLayout, shape.getOriginalSize(), finalTransform, !reversed));
             }
-        }
-    }
-
-    /**
-     * Adds a quad to the QuadCollection builder, handling culling
-     *
-     * @param builder the QuadCollection.Builder to add to
-     * @param quad    the quad and its culling direction
-     */
-    private void addQuadToBuilder(QuadCollection.Builder builder, Pair<BakedQuad, Direction> quad) {
-        if (quad.getRight() == null) {
-            builder.addUnculledFace(quad.getLeft());
-        } else {
-            builder.addCulledFace(quad.getRight(), quad.getLeft());
         }
     }
 
@@ -188,9 +107,6 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
     }
 
     public record Settings(Identifier modelLocation) {
-        public Identifier modelLocation() {
-            return this.modelLocation;
-        }
     }
 
     public static final class BlockyNode {
@@ -206,7 +122,6 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
                           BlockyShape shape, BlockyNode parent) {
             this.id = id;
             this.name = name;
-            // Defensive copies for mutable objects
             this.position = new Vector3f(position);
             this.orientation = new Quaternionf(orientation);
             this.shape = shape;
@@ -214,7 +129,6 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
             this.children = new ArrayList<>();
         }
 
-        // Getters only - no setters (immutable)
         public String getId() {
             return id;
         }
@@ -247,7 +161,6 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
             this.children.add(child);
         }
 
-
         public boolean hasShape() {
             return shape != null && shape.isVisible();
         }
@@ -262,7 +175,6 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
         private final boolean visible;
         private final boolean doubleSided;
         private final Vector3f offset;
-        private final Vector3f stretch;
         private final boolean needsWindingReversal;
         private final Vector3f originalSize;
         private final Vector3f size;
@@ -274,8 +186,6 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
             this.visible = visible;
             this.doubleSided = doubleSided;
             this.offset = new Vector3f(offset);
-
-            this.stretch = new Vector3f(stretch);
             this.originalSize = new Vector3f(size);
             this.size = new Vector3f(
                     size.x * stretch.x,
@@ -283,13 +193,13 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
                     size.z * stretch.z
             );
 
+            // An odd number of negative stretches turns the faces inside out
             int negativeCount = 0;
             if (stretch.x < 0) negativeCount++;
             if (stretch.y < 0) negativeCount++;
             if (stretch.z < 0) negativeCount++;
             this.needsWindingReversal = (negativeCount % 2) == 1;
 
-            // Immutable map
             this.textureLayout = Collections.unmodifiableMap(
                     new EnumMap<>(textureLayout)
             );
@@ -305,7 +215,6 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
             );
         }
 
-        // Getters
         public boolean isVisible() {
             return visible;
         }
@@ -316,10 +225,6 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
 
         public Vector3f getOffset() {
             return new Vector3f(offset);
-        }
-
-        public Vector3f getStretch() {
-            return stretch;
         }
 
         public boolean needsWindingReversal() {
@@ -350,8 +255,5 @@ public class BlockyModelGeometry implements ExtendedUnbakedGeometry {
             }
         }
 
-        public static FaceTextureLayout defaultLayout() {
-            return new FaceTextureLayout(0, 0, false, false, 0);
-        }
     }
 }

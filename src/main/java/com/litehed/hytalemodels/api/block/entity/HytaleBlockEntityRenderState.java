@@ -1,0 +1,19 @@
+package com.litehed.hytalemodels.api.block.entity;
+
+import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
+import net.minecraft.core.Direction;
+
+public class HytaleBlockEntityRenderState extends BlockEntityRenderState {
+    // Namespace the model and texture are loaded from
+    public String modelNamespace;
+    public String modelName;
+    public int animationTick;
+    public float partialTick;
+    /**
+     * Animation time in blockyanim units, (animationTick + partialTick) times the animation units per tick
+     * Pass it to BlockyAnimationPlayer when sampling keyframes
+     */
+    public float ageInTicks;
+    // Null if the block has no facing
+    public Direction facing;
+}
