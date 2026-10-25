@@ -66,8 +66,8 @@ Refer to the wiki to learn how to create and animate your models.
 
 ### Future Ports
 
+- [x] 1.21.1 NeoForge
 - [ ] 1.20.1 Forge
-- [ ] 1.21.1 NeoForge
 
 ## Contributing
 
